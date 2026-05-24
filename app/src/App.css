@@ -717,3 +717,132 @@
 .map-popup__book-author { font-size: 0.75rem; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .map-popup__book-price { font-size: 0.8rem; font-weight: 700; color: var(--color-accent); }
 .map-popup__book-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+/* ── Catalog page ───────────────────────────────────── */
+.catalog-count {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin: 0 0 8px;
+}
+
+.catalog-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+.catalog-card__cover {
+  width: 52px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: #eee;
+}
+
+.catalog-card__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.catalog-card__title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.catalog-card__author {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.catalog-card__meta {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.catalog-card__price {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: 0.82rem;
+}
+
+.catalog-card__price .price-original {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+}
+
+.catalog-card__price .price-arrow {
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+}
+
+.catalog-card__price .price-dia {
+  font-weight: 700;
+  color: var(--color-accent);
+}
+
+.catalog-card__action {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  padding-top: 2px;
+}
+
+.catalog-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.catalog-badge--gr {
+  background: #e8f4e8;
+  color: #2d6a4f;
+  border: 1px solid #b7dfc9;
+}
+
+.catalog-badge--added {
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  cursor: pointer;
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.catalog-badge--add {
+  background: none;
+  color: var(--color-accent);
+  border: 1.5px solid var(--color-accent);
+  cursor: pointer;
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.catalog-badge--add:hover {
+  background: var(--color-accent);
+  color: white;
+}

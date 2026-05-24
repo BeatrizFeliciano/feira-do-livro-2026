@@ -3,10 +3,11 @@ import { useBooks } from './hooks/useBooks'
 import { BooksPage } from './pages/BooksPage'
 import { DaysPage } from './pages/DaysPage'
 import { MapPage } from './pages/MapPage'
+import { CatalogPage } from './pages/CatalogPage'
 import logoUrl from './assets/logo.svg'
 import './App.css'
 
-const VALID_TABS = new Set(['books', 'days', 'map'])
+const VALID_TABS = new Set(['books', 'days', 'map', 'catalog'])
 
 function getTabFromHash() {
   const hash = window.location.hash.replace('#', '')
@@ -23,9 +24,10 @@ function setHash(tab) {
 }
 
 const TABS = [
-  { key: 'books', label: 'Os Meus Livros' },
-  { key: 'days',  label: 'Os Meus Livros Por Dia' },
-  { key: 'map',   label: 'Mapa' },
+  { key: 'books',   label: 'Os Meus Livros' },
+  { key: 'days',    label: 'Por Dia' },
+  { key: 'map',     label: 'Mapa' },
+  { key: 'catalog', label: 'Catálogo' },
 ]
 
 function AboutPage({ needsOnboarding, onStart, onSetUser, onClearUser, onRefresh, error }) {
@@ -94,8 +96,8 @@ export default function App() {
   const [tab, setTab] = useState(getTabFromHash)
   const [openStand, setOpenStand] = useState(null)
   const {
-    books, loading, loadingMessage, needsOnboarding, error,
-    setUser, clearUser, refresh, toggleWant, toggleBought,
+    books, faireBooks, loading, loadingMessage, needsOnboarding, error,
+    setUser, clearUser, refresh, toggleWant, toggleBought, addManual, removeManual,
   } = useBooks()
 
   // Sync tab state when the user navigates with the browser back/forward buttons
@@ -184,6 +186,8 @@ export default function App() {
           <BooksPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} onShowOnMap={handleShowOnMap} />
         ) : tab === 'days' ? (
           <DaysPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} onShowOnMap={handleShowOnMap} />
+        ) : tab === 'catalog' ? (
+          <CatalogPage faireBooks={faireBooks} books={books} onAdd={addManual} onRemove={removeManual} />
         ) : (
           <MapPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} openStand={openStand} onStandOpened={() => setOpenStand(null)} />
         )}

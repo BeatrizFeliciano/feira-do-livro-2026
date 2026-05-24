@@ -5,9 +5,10 @@ const WORKER_URL    = 'https://goodreads-proxy.beatrizfeliciano1999.workers.dev'
 const SHELVES       = ['to-read', 'read', 'currently-reading', 'did-not-finish']
 const FUZZY_THRESHOLD = 72   // same default as the Python script
 
-const LS_STATE_KEY = 'feira_book_state'
-const LS_USER_KEY  = 'feira_goodreads_id'
-const LS_CACHE_KEY = 'feira_books_cache'
+const LS_STATE_KEY  = 'feira_book_state'
+const LS_USER_KEY   = 'feira_goodreads_id'
+const LS_CACHE_KEY  = 'feira_books_cache'
+const LS_MANUAL_KEY = 'feira_manual_isbns'
 
 // ── Exact port of Python's normalise() ───────────────────
 // Matches: unicodedata.normalize('NFD') + strip Mn + lower + non-alnum→space + collapse ws
@@ -268,6 +269,11 @@ function loadBookState() {
 }
 function saveBookState(state) { localStorage.setItem(LS_STATE_KEY, JSON.stringify(state)) }
 
+function loadManualIsbns() {
+  try { return new Set(JSON.parse(localStorage.getItem(LS_MANUAL_KEY) || '[]')) } catch { return new Set() }
+}
+function saveManualIsbns(set) { localStorage.setItem(LS_MANUAL_KEY, JSON.stringify([...set])) }
+
 function extractUserId(input) {
   const trimmed = input.trim()
   const match = trimmed.match(/\/user\/show\/(\d+)/)
@@ -282,6 +288,7 @@ export function useBooks() {
   const [faireBooks, setFaireBooks]         = useState(null)
   const [rawBooks, setRawBooks]             = useState(null)
   const [bookState, setBookState]           = useState(loadBookState)
+  const [manualIsbns, setManualIsbns]       = useState(loadManualIsbns)
   const [userId, setUserId]                 = useState(() => localStorage.getItem(LS_USER_KEY))
   const [fetching, setFetching]             = useState(false)
   const [loadingMessage, setLoadingMessage] = useState('')
@@ -321,11 +328,56 @@ export function useBooks() {
     return () => controller.abort()
   }, [faireBooks, userId, rawBooks])
 
-  const books = (rawBooks || []).map(b => ({
+  // Manually added books (books from the feira catalog the user added directly,
+  // not matched via Goodreads). Excluded if they already appear in rawBooks.
+  const matchedIds = new Set((rawBooks || []).map(b => b.id))
+  const manualBooks = faireBooks
+    ? [...manualIsbns]
+        .filter(isbn => faireBooks[isbn] && !matchedIds.has(isbn))
+        .map(isbn => {
+          const fb = faireBooks[isbn]
+          return {
+            id:                     isbn,
+            gr_title:               fb.titulo,
+            gr_author:              fb.autor,
+            gr_shelf:               null,
+            gr_my_rating:           0,
+            feira_titulo:           fb.titulo,
+            feira_autor:            fb.autor,
+            feira_participante:     fb.participante,
+            feira_stand:            fb.stand,
+            feira_pvp:              fb.pvp,
+            feira_pvp_feira:        fb.pvp_feira,
+            feira_pvp_livro_do_dia: fb.pvp_livro_do_dia,
+            discountDates:          fb.datas,
+            feira_cover_jpg:        fb.cover,
+            manuallyAdded:          true,
+          }
+        })
+    : []
+
+  const books = [...(rawBooks || []), ...manualBooks].map(b => ({
     ...b,
-    wantToBuy: bookState[b.id]?.wantToBuy || false,
-    bought:    bookState[b.id]?.bought    || false,
+    wantToBuy: bookState[b.id]?.wantToBuy ?? (b.manuallyAdded ? true : false),
+    bought:    bookState[b.id]?.bought    ?? false,
   }))
+
+  function addManual(isbn) {
+    if (!faireBooks?.[isbn]) return
+    setManualIsbns(prev => {
+      const next = new Set(prev); next.add(isbn); saveManualIsbns(next); return next
+    })
+    setBookState(prev => {
+      const next = { ...prev, [isbn]: { wantToBuy: true, bought: prev[isbn]?.bought || false } }
+      saveBookState(next); return next
+    })
+  }
+
+  function removeManual(isbn) {
+    setManualIsbns(prev => {
+      const next = new Set(prev); next.delete(isbn); saveManualIsbns(next); return next
+    })
+  }
 
   function setUser(input) {
     const id = extractUserId(input)
@@ -361,10 +413,12 @@ export function useBooks() {
 
   return {
     books,
+    faireBooks,
+    manualIsbns,
     loading:        fetching || (!!userId && rawBooks === null && !error),
     loadingMessage,
     needsOnboarding: !userId,
     error,
-    setUser, clearUser, refresh, toggleWant, toggleBought,
+    setUser, clearUser, refresh, toggleWant, toggleBought, addManual, removeManual,
   }
 }

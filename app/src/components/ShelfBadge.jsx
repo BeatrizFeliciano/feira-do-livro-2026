@@ -6,6 +6,7 @@ const LABELS = {
 }
 
 export function ShelfBadge({ shelf }) {
+  if (!shelf) return null
   return (
     <span className={`shelf-badge shelf-badge--${shelf}`}>
       {LABELS[shelf] || shelf}
