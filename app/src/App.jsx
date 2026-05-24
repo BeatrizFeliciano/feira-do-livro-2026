@@ -1,10 +1,26 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useBooks } from './hooks/useBooks'
 import { BooksPage } from './pages/BooksPage'
 import { DaysPage } from './pages/DaysPage'
 import { MapPage } from './pages/MapPage'
 import logoUrl from './assets/logo.svg'
 import './App.css'
+
+const VALID_TABS = new Set(['books', 'days', 'map'])
+
+function getTabFromHash() {
+  const hash = window.location.hash.replace('#', '')
+  return VALID_TABS.has(hash) ? hash : 'about'
+}
+
+function setHash(tab) {
+  if (tab === 'about') {
+    // Remove the hash entirely rather than leaving a trailing '#'
+    history.pushState(null, '', window.location.pathname + window.location.search)
+  } else {
+    window.location.hash = tab
+  }
+}
 
 const TABS = [
   { key: 'books', label: 'Os Meus Livros' },
@@ -75,32 +91,46 @@ function AboutPage({ needsOnboarding, onStart, onSetUser, onClearUser, onRefresh
 }
 
 export default function App() {
-  const [tab, setTab] = useState('about')
+  const [tab, setTab] = useState(getTabFromHash)
   const [openStand, setOpenStand] = useState(null)
   const {
     books, loading, loadingMessage, needsOnboarding, error,
     setUser, clearUser, refresh, toggleWant, toggleBought,
   } = useBooks()
 
+  // Sync tab state when the user navigates with the browser back/forward buttons
+  useEffect(() => {
+    const onHashChange = () => setTab(getTabFromHash())
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
+  function navigate(newTab) {
+    setHash(newTab)
+    // pushState (used for 'about') doesn't fire hashchange, so set state directly
+    if (newTab === 'about') setTab('about')
+    // for other tabs, hashchange fires and updates state via the listener
+  }
+
   function handleSetUser(input) {
     const ok = setUser(input)
-    if (ok) setTab('books')
+    if (ok) navigate('books')
     return ok
   }
 
   function handleRefresh() {
     refresh()
-    setTab('books')
+    navigate('books')
   }
 
   function handleClearUser() {
     clearUser()
-    setTab('about')
+    navigate('about')
   }
 
   function handleShowOnMap(stand) {
     setOpenStand(stand)
-    setTab('map')
+    navigate('map')
   }
 
   return (
@@ -109,7 +139,7 @@ export default function App() {
         <div className="app-header__inner">
           <button
             className="app-logo-btn"
-            onClick={() => setTab('about')}
+            onClick={() => navigate('about')}
             aria-label="Início"
           >
             <img src={logoUrl} alt="My Books" className="app-logo" />
@@ -119,7 +149,7 @@ export default function App() {
               <button
                 key={t.key}
                 className={`app-tab ${tab === t.key ? 'active' : ''}`}
-                onClick={() => setTab(t.key)}
+                onClick={() => navigate(t.key)}
               >
                 {t.label}
               </button>
@@ -132,7 +162,7 @@ export default function App() {
         {tab === 'about' ? (
           <AboutPage
             needsOnboarding={needsOnboarding}
-            onStart={() => setTab('books')}
+            onStart={() => navigate('books')}
             onSetUser={handleSetUser}
             onClearUser={handleClearUser}
             onRefresh={handleRefresh}
@@ -146,7 +176,7 @@ export default function App() {
         ) : error ? (
           <div className="loading">
             <span className="loading-error">{error}</span>
-            <button className="about-btn" style={{ marginTop: 16 }} onClick={() => setTab('about')}>
+            <button className="about-btn" style={{ marginTop: 16 }} onClick={() => navigate('about')}>
               Voltar
             </button>
           </div>
