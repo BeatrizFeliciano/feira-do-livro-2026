@@ -19,6 +19,8 @@ function CatalogCard({ fb, inList, isManual, onAdd, onRemove }) {
         <div className="catalog-card__price">
           <span className="price-original">€{parseFloat(fb.pvp).toFixed(2)}</span>
           <span className="price-arrow">→</span>
+          <span className="price-feira">€{parseFloat(fb.pvp_feira).toFixed(2)}</span>
+          <span className="price-arrow">→</span>
           <span className="price-dia">€{parseFloat(fb.pvp_livro_do_dia).toFixed(2)}</span>
         </div>
       </div>
