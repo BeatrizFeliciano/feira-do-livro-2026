@@ -4,12 +4,13 @@ import { BookCard } from '../components/BookCard'
 const PAGE_SIZE = 50
 
 const SHELVES = [
-  { key: 'all', label: 'Todos' },
-  { key: 'want', label: 'Quero comprar' },
-  { key: 'to-read', label: 'Para ler' },
+  { key: 'all',               label: 'Todos' },
+  { key: 'ldd',               label: 'Livro do Dia' },
+  { key: 'want',              label: 'Quero comprar' },
+  { key: 'to-read',           label: 'Para ler' },
   { key: 'currently-reading', label: 'A ler' },
-  { key: 'read', label: 'Lidos' },
-  { key: 'did-not-finish', label: 'Desistiu' },
+  { key: 'read',              label: 'Lidos' },
+  { key: 'did-not-finish',    label: 'Desistiu' },
 ]
 
 function matches(book, query) {
@@ -24,14 +25,19 @@ function matches(book, query) {
   )
 }
 
-export function BooksPage({ books, onToggleWant, onToggleBought, onShowOnMap }) {
+export function BooksPage({ books, onToggleWant, onToggleBought, onShowOnMap, onRemove }) {
   const [shelf, setShelf] = useState('all')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
 
   const filtered = useMemo(() =>
     books
-      .filter(b => shelf === 'all' || (shelf === 'want' ? b.wantToBuy : b.gr_shelf === shelf))
+      .filter(b => {
+        if (shelf === 'all')  return true
+        if (shelf === 'ldd')  return b.livroDodia
+        if (shelf === 'want') return b.wantToBuy
+        return b.gr_shelf === shelf
+      })
       .filter(b => query === '' || matches(b, query))
       .sort((a, b) => a.gr_title.localeCompare(b.gr_title, 'pt')),
     [books, shelf, query]
@@ -48,9 +54,12 @@ export function BooksPage({ books, onToggleWant, onToggleBought, onShowOnMap }) 
 
   const wantedBooks = books.filter(b => b.wantToBuy && !b.bought)
   const totalSavings = wantedBooks.reduce((sum, b) => {
+    if (!b.livroDodia) return sum
     return sum + (parseFloat(b.feira_pvp) - parseFloat(b.feira_pvp_livro_do_dia))
   }, 0)
-  const totalCost = wantedBooks.reduce((sum, b) => sum + parseFloat(b.feira_pvp_livro_do_dia), 0)
+  const totalCost = wantedBooks.reduce((sum, b) =>
+    sum + parseFloat(b.livroDodia ? b.feira_pvp_livro_do_dia : b.feira_pvp_feira)
+  , 0)
 
   return (
     <div className="page">
@@ -72,7 +81,8 @@ export function BooksPage({ books, onToggleWant, onToggleBought, onShowOnMap }) 
 
       <div className="shelf-tabs">
         {SHELVES.map(s => {
-          const count = s.key === 'all' ? books.length
+          const count = s.key === 'all'  ? books.length
+            : s.key === 'ldd'  ? books.filter(b => b.livroDodia).length
             : s.key === 'want' ? books.filter(b => b.wantToBuy).length
             : books.filter(b => b.gr_shelf === s.key).length
           return (
@@ -95,6 +105,7 @@ export function BooksPage({ books, onToggleWant, onToggleBought, onShowOnMap }) 
             onToggleWant={onToggleWant}
             onToggleBought={onToggleBought}
             onShowOnMap={onShowOnMap}
+            onRemove={onRemove}
           />
         ))}
       </div>

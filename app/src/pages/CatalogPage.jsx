@@ -17,15 +17,22 @@ function useDebounce(value, delay) {
 }
 
 function CatalogCard({ book, isLdd, inList, isManual, onAdd, onRemove }) {
+  const [imgError, setImgError] = useState(false)
+  const cover = book.cover_jpg || book.cover_webp
+
   return (
     <div className="catalog-card">
-      <img
-        className="catalog-card__cover"
-        src={book.cover_jpg || book.cover_webp}
-        alt={book.titulo}
-        loading="lazy"
-        onError={e => { e.target.style.visibility = 'hidden' }}
-      />
+      {cover && !imgError ? (
+        <img
+          className="catalog-card__cover"
+          src={cover}
+          alt={book.titulo}
+          loading="lazy"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className="catalog-card__cover" aria-hidden="true" />
+      )}
       <div className="catalog-card__body">
         <span className="catalog-card__title">{book.titulo}</span>
         <span className="catalog-card__author">{book.autor}</span>

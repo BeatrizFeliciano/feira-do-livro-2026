@@ -1,4 +1,7 @@
+import { useState } from 'react'
 import { ShelfBadge } from './ShelfBadge'
+import { TrashIcon } from './TrashIcon'
+import { ConfirmDialog } from './ConfirmDialog'
 
 function Stars({ rating }) {
   const n = parseInt(rating, 10)
@@ -33,7 +36,9 @@ function PriceBlock({ pvp, pvpFeira, pvpDia }) {
   )
 }
 
-export function BookCard({ book, onToggleWant, onToggleBought, onShowOnMap }) {
+export function BookCard({ book, onToggleWant, onToggleBought, onShowOnMap, onRemove }) {
+  const [confirmingRemove, setConfirmingRemove] = useState(false)
+
   return (
     <div className={`book-card ${book.bought ? 'book-card--bought' : ''}`}>
       <img
@@ -90,8 +95,24 @@ export function BookCard({ book, onToggleWant, onToggleBought, onShowOnMap }) {
           onClick={() => onToggleBought(book.id)}
           title={book.bought ? 'Marcar como não comprado' : 'Marcar como comprado'}
         >
-          {book.bought ? '✓ Comprado' : '✓ Comprado'}
+          {book.bought ? '✓ Comprado' : '○ Comprado'}
         </button>
+        {onRemove && (
+          <button
+            className="btn-action btn-remove"
+            onClick={() => setConfirmingRemove(true)}
+            title="Remover da lista"
+          >
+            <TrashIcon /> Remover
+          </button>
+        )}
+        {confirmingRemove && (
+          <ConfirmDialog
+            message={`Remover "${book.feira_titulo}" da tua lista?`}
+            onConfirm={() => onRemove(book.id)}
+            onCancel={() => setConfirmingRemove(false)}
+          />
+        )}
       </div>
     </div>
   )

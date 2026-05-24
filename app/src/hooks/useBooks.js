@@ -9,7 +9,8 @@ const FUZZY_THRESHOLD = 72   // same default as the Python script
 const LS_STATE_KEY  = 'feira_book_state'
 const LS_USER_KEY   = 'feira_goodreads_id'
 const LS_CACHE_KEY  = 'feira_books_cache'
-const LS_MANUAL_KEY = 'feira_manual_books'   // { [isbn]: fullBookObj }
+const LS_MANUAL_KEY  = 'feira_manual_books'   // { [isbn]: fullBookObj }
+const LS_HIDDEN_KEY  = 'feira_hidden_books'   // [isbn, ...]
 
 // ── Exact port of Python's normalise() ───────────────────
 // Matches: unicodedata.normalize('NFD') + strip Mn + lower + non-alnum→space + collapse ws
@@ -276,6 +277,11 @@ function loadManualBooks() {
 }
 function saveManualBooks(obj) { localStorage.setItem(LS_MANUAL_KEY, JSON.stringify(obj)) }
 
+function loadHiddenBooks() {
+  try { return new Set(JSON.parse(localStorage.getItem(LS_HIDDEN_KEY) || '[]')) } catch { return new Set() }
+}
+function saveHiddenBooks(set) { localStorage.setItem(LS_HIDDEN_KEY, JSON.stringify([...set])) }
+
 function extractUserId(input) {
   const trimmed = input.trim()
   const match = trimmed.match(/\/user\/show\/(\d+)/)
@@ -291,6 +297,7 @@ export function useBooks() {
   const [rawBooks, setRawBooks]             = useState(null)
   const [bookState, setBookState]           = useState(loadBookState)
   const [manualBooks, setManualBooks]       = useState(loadManualBooks)
+  const [hiddenBooks, setHiddenBooks]       = useState(loadHiddenBooks)
   const [userId, setUserId]                 = useState(() => localStorage.getItem(LS_USER_KEY))
   const [fetching, setFetching]             = useState(false)
   const [loadingMessage, setLoadingMessage] = useState('')
@@ -347,6 +354,7 @@ export function useBooks() {
   // Excluded if the ISBN already appears in rawBooks (Goodreads-matched).
   const matchedIds = new Set((rawBooks || []).map(b => b.id))
   const manualBooksArr = Object.entries(manualBooks)
+    .filter(([isbn]) => !hiddenBooks.has(isbn))
     .filter(([isbn]) => !matchedIds.has(isbn))
     .map(([isbn, fb]) => ({
       id:                     isbn,
@@ -367,11 +375,27 @@ export function useBooks() {
       manuallyAdded:          true,
     }))
 
-  const books = [...(rawBooks || []), ...manualBooksArr].map(b => ({
+  const books = [...(rawBooks || []).filter(b => !hiddenBooks.has(b.id)), ...manualBooksArr].map(b => ({
     ...b,
+    // livroDodia may be absent in caches written before the field was introduced.
+    // All rawBooks come from faireBooks (all LDD); manuallyAdded books default to false.
+    livroDodia: b.livroDodia ?? !b.manuallyAdded,
     wantToBuy: bookState[b.id]?.wantToBuy ?? (b.manuallyAdded ? true : false),
     bought:    bookState[b.id]?.bought    ?? false,
   }))
+
+  function removeBook(id) {
+    // Remove from manual list (if it was manually added)
+    setManualBooks(prev => {
+      const { [id]: _, ...next } = prev
+      saveManualBooks(next); return next
+    })
+    // Hide from Goodreads-matched list too
+    setHiddenBooks(prev => {
+      const next = new Set([...prev, id])
+      saveHiddenBooks(next); return next
+    })
+  }
 
   function addManual(isbn, bookData) {
     setManualBooks(prev => {
@@ -431,6 +455,6 @@ export function useBooks() {
     loadingMessage,
     needsOnboarding: !userId,
     error,
-    setUser, clearUser, refresh, toggleWant, toggleBought, addManual, removeManual,
+    setUser, clearUser, refresh, toggleWant, toggleBought, addManual, removeManual, removeBook,
   }
 }

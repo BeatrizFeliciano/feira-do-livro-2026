@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { TrashIcon } from '../components/TrashIcon'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 
 const SVG_W = 1600
 const SVG_H = 2400
@@ -11,7 +13,8 @@ function formatDate(raw) {
   return `${parseInt(d)} ${months[parseInt(m) - 1]}`
 }
 
-function StandPopup({ stand, books, publishers, activeDay, onToggleWant, onToggleBought, onClose }) {
+function StandPopup({ stand, books, publishers, activeDay, onToggleWant, onToggleBought, onRemove, onClose }) {
+  const [confirmingId, setConfirmingId] = useState(null)
   const standBooks = books.filter(b => {
     if (b.feira_stand !== stand) return false
     if (activeDay) return b.discountDates.includes(activeDay)
@@ -52,6 +55,18 @@ function StandPopup({ stand, books, publishers, activeDay, onToggleWant, onToggl
                   onClick={() => onToggleBought(book.id)}
                   title={book.bought ? 'Marcar como não comprado' : 'Marcar como comprado'}
                 >✓</button>
+                <button
+                  className="btn-action btn-sm btn-remove"
+                  onClick={() => setConfirmingId(book.id)}
+                  title="Remover da lista"
+                ><TrashIcon /></button>
+                {confirmingId === book.id && (
+                  <ConfirmDialog
+                    message={`Remover "${book.feira_titulo}" da tua lista?`}
+                    onConfirm={() => { onRemove(book.id); setConfirmingId(null) }}
+                    onCancel={() => setConfirmingId(null)}
+                  />
+                )}
               </div>
             </li>
           ))}
@@ -61,7 +76,7 @@ function StandPopup({ stand, books, publishers, activeDay, onToggleWant, onToggl
   )
 }
 
-export function MapPage({ books, onToggleWant, onToggleBought, openStand, onStandOpened }) {
+export function MapPage({ books, onToggleWant, onToggleBought, onRemove, openStand, onStandOpened }) {
   const [coords, setCoords] = useState(null)
   const [publishers, setPublishers] = useState({})
   const [query, setQuery] = useState('')
@@ -242,6 +257,7 @@ export function MapPage({ books, onToggleWant, onToggleBought, openStand, onStan
         activeDay={activeDay}
         onToggleWant={onToggleWant}
         onToggleBought={onToggleBought}
+        onRemove={onRemove}
         onClose={() => setSelectedStand(null)}
       />
     </div>,

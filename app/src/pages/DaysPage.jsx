@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react'
 import { ShelfBadge } from '../components/ShelfBadge'
+import { TrashIcon } from '../components/TrashIcon'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 
 const WEEKDAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
@@ -15,7 +17,9 @@ function formatDateShort(raw) {
   return `${parseInt(d)} ${MONTHS[parseInt(m) - 1]}`
 }
 
-function BookRow({ book, onToggleWant, onToggleBought }) {
+function BookRow({ book, onToggleWant, onToggleBought, onRemove }) {
+  const [confirmingRemove, setConfirmingRemove] = useState(false)
+
   return (
     <div className={`day-book-row ${book.bought ? 'day-book-row--bought' : ''}`}>
       <img
@@ -48,6 +52,22 @@ function BookRow({ book, onToggleWant, onToggleBought }) {
         >
           ✓
         </button>
+        {onRemove && (
+          <button
+            className="btn-action btn-remove btn-sm"
+            onClick={() => setConfirmingRemove(true)}
+            title="Remover da lista"
+          >
+            <TrashIcon />
+          </button>
+        )}
+        {confirmingRemove && (
+          <ConfirmDialog
+            message={`Remover "${book.feira_titulo}" da tua lista?`}
+            onConfirm={() => onRemove(book.id)}
+            onCancel={() => setConfirmingRemove(false)}
+          />
+        )}
       </div>
     </div>
   )
@@ -64,7 +84,7 @@ function matches(book, query) {
   return book.gr_title.toLowerCase().includes(q) || book.gr_author.toLowerCase().includes(q)
 }
 
-export function DaysPage({ books, onToggleWant, onToggleBought, onShowOnMap }) {
+export function DaysPage({ books, onToggleWant, onToggleBought, onShowOnMap, onRemove }) {
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [activeDay, setActiveDay] = useState(null)
@@ -185,6 +205,7 @@ export function DaysPage({ books, onToggleWant, onToggleBought, onShowOnMap }) {
                     book={book}
                     onToggleWant={onToggleWant}
                     onToggleBought={onToggleBought}
+                    onRemove={onRemove}
                   />
                 ))}
               </div>

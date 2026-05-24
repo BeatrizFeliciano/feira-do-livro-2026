@@ -97,7 +97,7 @@ export default function App() {
   const [openStand, setOpenStand] = useState(null)
   const {
     books, faireBooks, manualBooks, loading, loadingMessage, needsOnboarding, error,
-    setUser, clearUser, refresh, toggleWant, toggleBought, addManual, removeManual,
+    setUser, clearUser, refresh, toggleWant, toggleBought, addManual, removeManual, removeBook,
   } = useBooks()
 
   // Sync tab state when the user navigates with the browser back/forward buttons
@@ -183,13 +183,13 @@ export default function App() {
             </button>
           </div>
         ) : tab === 'books' ? (
-          <BooksPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} onShowOnMap={handleShowOnMap} />
+          <BooksPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} onShowOnMap={handleShowOnMap} onRemove={removeBook} />
         ) : tab === 'days' ? (
-          <DaysPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} onShowOnMap={handleShowOnMap} />
+          <DaysPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} onShowOnMap={handleShowOnMap} onRemove={removeBook} />
         ) : tab === 'catalog' ? (
           <CatalogPage faireBooks={faireBooks} manualBooks={manualBooks} books={books} onAdd={addManual} onRemove={removeManual} />
         ) : (
-          <MapPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} openStand={openStand} onStandOpened={() => setOpenStand(null)} />
+          <MapPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} onRemove={removeBook} openStand={openStand} onStandOpened={() => setOpenStand(null)} />
         )}
       </main>
     </div>
