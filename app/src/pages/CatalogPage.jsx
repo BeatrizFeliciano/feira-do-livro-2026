@@ -98,7 +98,7 @@ export function CatalogPage({ faireBooks, books, onAdd, onRemove }) {
           <p className="catalog-count">
             {filtered.length.toLocaleString('pt-PT')}{' '}
             livro{filtered.length !== 1 ? 's' : ''}{' '}
-            {query.trim() ? `encontrado${filtered.length !== 1 ? 's' : ''}` : 'na feira'}
+            {query.trim() ? `encontrado${filtered.length !== 1 ? 's' : ''}` : 'do dia na feira'}
           </p>
 
           <div className="book-list">

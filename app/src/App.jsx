@@ -24,10 +24,10 @@ function setHash(tab) {
 }
 
 const TABS = [
+  { key: 'catalog', label: 'Catálogo da Feira' },
   { key: 'books',   label: 'Os Meus Livros' },
   { key: 'days',    label: 'Por Dia' },
   { key: 'map',     label: 'Mapa' },
-  { key: 'catalog', label: 'Catálogo' },
 ]
 
 function AboutPage({ needsOnboarding, onStart, onSetUser, onClearUser, onRefresh, error }) {
