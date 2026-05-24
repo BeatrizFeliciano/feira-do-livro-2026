@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { WORKER_URL } from '../constants'
 
 const LIMIT = 50
+const TOTAL_ALL_BOOKS = 45234  // empirically determined from the API (2026-05-24)
 
 const normaliseIsbn = isbn => (isbn || '').replace(/\D/g, '')
 
@@ -60,18 +61,33 @@ function CatalogCard({ book, isLdd, inList, isManual, onAdd, onRemove }) {
 }
 
 export function CatalogPage({ faireBooks, manualBooks, books, onAdd, onRemove }) {
-  const [inputVal, setInputVal]   = useState('')
-  const [lddOnly, setLddOnly]     = useState(false)
-  const [offset, setOffset]       = useState(0)
-  const [results, setResults]     = useState([])
-  const [hasMore, setHasMore]     = useState(true)
-  const [fetching, setFetching]   = useState(false)
+  const [inputVal, setInputVal]     = useState('')
+  const [lddOnly, setLddOnly]       = useState(false)
+  const [offset, setOffset]         = useState(0)
+  const [results, setResults]       = useState([])
+  const [hasMore, setHasMore]       = useState(true)
+  const [fetching, setFetching]     = useState(false)
   const [fetchError, setFetchError] = useState(null)
+  const [knownTotal, setKnownTotal] = useState(null)
 
   const query = useDebounce(inputVal, 300)
 
   // Reset to first page when query or filter changes
   useEffect(() => { setOffset(0) }, [query, lddOnly])
+
+  // Known total: use exact counts where possible, discover from last page otherwise
+  useEffect(() => {
+    if (lddOnly && faireBooks) {
+      // Exact: we have all LDD books in memory
+      setKnownTotal(Object.keys(faireBooks).length)
+    } else if (!query.trim()) {
+      // No search active: use empirically-determined constant
+      setKnownTotal(TOTAL_ALL_BOOKS)
+    } else {
+      // Searching: reset; will be filled in when we hit the last page
+      setKnownTotal(null)
+    }
+  }, [lddOnly, query, faireBooks])
 
   // Fetch from Feira API via Worker
   useEffect(() => {
@@ -90,8 +106,11 @@ export function CatalogPage({ faireBooks, manualBooks, books, onAdd, onRemove })
     fetch(`${WORKER_URL}?url=${encodeURIComponent(feiraUrl.toString())}`, { signal: controller.signal })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then(data => {
-        setResults(Array.isArray(data) ? data : [])
-        setHasMore(Array.isArray(data) && data.length === LIMIT)
+        const arr = Array.isArray(data) ? data : []
+        setResults(arr)
+        setHasMore(arr.length === LIMIT)
+        // If this is the last page, we now know the exact total
+        if (arr.length < LIMIT) setKnownTotal(offset + arr.length)
         setFetching(false)
       })
       .catch(e => {
@@ -110,7 +129,8 @@ export function CatalogPage({ faireBooks, manualBooks, books, onAdd, onRemove })
   const matchedIds  = useMemo(() => new Set(books.filter(b => !b.manuallyAdded).map(b => b.id)), [books])
   const manualIds   = useMemo(() => new Set(Object.keys(manualBooks || {})), [manualBooks])
 
-  const page = Math.floor(offset / LIMIT) + 1
+  const page       = Math.floor(offset / LIMIT) + 1
+  const totalPages = knownTotal !== null ? Math.ceil(knownTotal / LIMIT) : null
 
   return (
     <div className="page">
@@ -137,9 +157,10 @@ export function CatalogPage({ faireBooks, manualBooks, books, onAdd, onRemove })
       ) : (
         <>
           <p className="catalog-count">
-            {fetching ? 'A carregar…' : (
-              results.length === 0 ? 'Nenhum livro encontrado.' :
-              `${results.length === LIMIT ? `${LIMIT}+` : results.length} resultado${results.length !== 1 ? 's' : ''} · página ${page}`
+            {fetching ? 'A carregar…' : results.length === 0 ? 'Nenhum livro encontrado.' : (
+              knownTotal !== null
+                ? `${knownTotal.toLocaleString('pt-PT')} livro${knownTotal !== 1 ? 's' : ''}`
+                : `${results.length === LIMIT ? `${LIMIT}+` : results.length} resultado${results.length !== 1 ? 's' : ''}`
             )}
           </p>
 
@@ -183,7 +204,9 @@ export function CatalogPage({ faireBooks, manualBooks, books, onAdd, onRemove })
               >
                 ‹ Anterior
               </button>
-              <span className="pagination__info">Página {page}</span>
+              <span className="pagination__info">
+                {totalPages !== null ? `${page} / ${totalPages}` : `Página ${page}`}
+              </span>
               <button
                 className="pagination__btn"
                 onClick={() => setOffset(o => o + LIMIT)}
