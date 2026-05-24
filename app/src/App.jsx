@@ -96,7 +96,7 @@ export default function App() {
   const [tab, setTab] = useState(getTabFromHash)
   const [openStand, setOpenStand] = useState(null)
   const {
-    books, faireBooks, loading, loadingMessage, needsOnboarding, error,
+    books, faireBooks, manualBooks, loading, loadingMessage, needsOnboarding, error,
     setUser, clearUser, refresh, toggleWant, toggleBought, addManual, removeManual,
   } = useBooks()
 
@@ -187,7 +187,7 @@ export default function App() {
         ) : tab === 'days' ? (
           <DaysPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} onShowOnMap={handleShowOnMap} />
         ) : tab === 'catalog' ? (
-          <CatalogPage faireBooks={faireBooks} books={books} onAdd={addManual} onRemove={removeManual} />
+          <CatalogPage faireBooks={faireBooks} manualBooks={manualBooks} books={books} onAdd={addManual} onRemove={removeManual} />
         ) : (
           <MapPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} openStand={openStand} onStandOpened={() => setOpenStand(null)} />
         )}

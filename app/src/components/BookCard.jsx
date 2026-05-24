@@ -11,17 +11,24 @@ function Stars({ rating }) {
 }
 
 function PriceBlock({ pvp, pvpFeira, pvpDia }) {
-  const savings = pvp && pvpDia
+  const hasDia = pvpDia != null && pvpDia !== ''
+  const savings = hasDia
     ? Math.round((1 - parseFloat(pvpDia) / parseFloat(pvp)) * 100)
     : 0
   return (
     <div className="price-block">
       <span className="price-original">€{parseFloat(pvp).toFixed(2)}</span>
       <span className="price-arrow">→</span>
-      <span className="price-feira">€{parseFloat(pvpFeira).toFixed(2)}</span>
-      <span className="price-arrow">→</span>
-      <span className="price-dia">€{parseFloat(pvpDia).toFixed(2)}</span>
-      {savings > 0 && <span className="price-savings">-{savings}%</span>}
+      {hasDia ? (
+        <>
+          <span className="price-feira">€{parseFloat(pvpFeira).toFixed(2)}</span>
+          <span className="price-arrow">→</span>
+          <span className="price-dia">€{parseFloat(pvpDia).toFixed(2)}</span>
+          {savings > 0 && <span className="price-savings">-{savings}%</span>}
+        </>
+      ) : (
+        <span className="price-dia">€{parseFloat(pvpFeira).toFixed(2)}</span>
+      )}
     </div>
   )
 }
@@ -60,13 +67,15 @@ export function BookCard({ book, onToggleWant, onToggleBought, onShowOnMap }) {
           pvpFeira={book.feira_pvp_feira}
           pvpDia={book.feira_pvp_livro_do_dia}
         />
-        <div className="book-card__dates">
-          {book.discountDates.map(d => (
-            <span key={d} className="date-chip">
-              {new Date(d + 'T00:00:00').toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' })}
-            </span>
-          ))}
-        </div>
+        {book.discountDates.length > 0 && (
+          <div className="book-card__dates">
+            {book.discountDates.map(d => (
+              <span key={d} className="date-chip">
+                {new Date(d + 'T00:00:00').toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' })}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
       <div className="book-card__actions">
         <button

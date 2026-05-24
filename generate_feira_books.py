@@ -29,6 +29,7 @@ with open(src, encoding='utf-8') as f:
             'pvp':              row['pvp'],
             'pvp_feira':        row['pvp_feira'],
             'pvp_livro_do_dia': row['pvp_livro_do_dia'],
+            'livroDodia':       True,
             'datas':            datas,
             'cover':            row['cover_jpg'] or row['cover_webp'],
         }

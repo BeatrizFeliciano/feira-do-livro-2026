@@ -39,7 +39,7 @@ function StandPopup({ stand, books, publishers, activeDay, onToggleWant, onToggl
               <div className="map-popup__book-info">
                 <span className="map-popup__book-title">{book.feira_titulo}</span>
                 <span className="map-popup__book-author">{book.feira_autor}</span>
-                <span className="map-popup__book-price">€{parseFloat(book.feira_pvp_livro_do_dia).toFixed(2)}</span>
+                <span className="map-popup__book-price">€{parseFloat(book.livroDodia ? book.feira_pvp_livro_do_dia : book.feira_pvp_feira).toFixed(2)}</span>
               </div>
               <div className="map-popup__book-actions">
                 <button

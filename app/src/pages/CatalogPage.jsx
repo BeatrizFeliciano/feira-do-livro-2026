@@ -1,27 +1,45 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { WORKER_URL } from '../constants'
 
-const PAGE_SIZE = 50
+const LIMIT = 50
 
-function CatalogCard({ fb, inList, isManual, onAdd, onRemove }) {
+const normaliseIsbn = isbn => (isbn || '').replace(/\D/g, '')
+
+function useDebounce(value, delay) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
+}
+
+function CatalogCard({ book, isLdd, inList, isManual, onAdd, onRemove }) {
   return (
     <div className="catalog-card">
       <img
         className="catalog-card__cover"
-        src={fb.cover}
-        alt={fb.titulo}
+        src={book.cover_jpg || book.cover_webp}
+        alt={book.titulo}
         loading="lazy"
         onError={e => { e.target.style.visibility = 'hidden' }}
       />
       <div className="catalog-card__body">
-        <span className="catalog-card__title">{fb.titulo}</span>
-        <span className="catalog-card__author">{fb.autor}</span>
-        <span className="catalog-card__meta">{fb.stand} · {fb.participante}</span>
+        <span className="catalog-card__title">{book.titulo}</span>
+        <span className="catalog-card__author">{book.autor}</span>
+        <span className="catalog-card__meta">{book.stand} · {book.participante_name}</span>
         <div className="catalog-card__price">
-          <span className="price-original">€{parseFloat(fb.pvp).toFixed(2)}</span>
+          <span className="price-original">€{parseFloat(book.pvp).toFixed(2)}</span>
           <span className="price-arrow">→</span>
-          <span className="price-feira">€{parseFloat(fb.pvp_feira).toFixed(2)}</span>
-          <span className="price-arrow">→</span>
-          <span className="price-dia">€{parseFloat(fb.pvp_livro_do_dia).toFixed(2)}</span>
+          {book.pvp_livro_do_dia ? (
+            <>
+              <span className="price-feira">€{parseFloat(book.pvp_feira).toFixed(2)}</span>
+              <span className="price-arrow">→</span>
+              <span className="price-dia">€{parseFloat(book.pvp_livro_do_dia).toFixed(2)}</span>
+            </>
+          ) : (
+            <span className="price-dia">€{parseFloat(book.pvp_feira).toFixed(2)}</span>
+          )}
         </div>
       </div>
       <div className="catalog-card__action">
@@ -41,44 +59,58 @@ function CatalogCard({ fb, inList, isManual, onAdd, onRemove }) {
   )
 }
 
-export function CatalogPage({ faireBooks, books, onAdd, onRemove }) {
-  const [query, setQuery] = useState('')
-  const [page, setPage] = useState(1)
+export function CatalogPage({ faireBooks, manualBooks, books, onAdd, onRemove }) {
+  const [inputVal, setInputVal]   = useState('')
+  const [lddOnly, setLddOnly]     = useState(false)
+  const [offset, setOffset]       = useState(0)
+  const [results, setResults]     = useState([])
+  const [hasMore, setHasMore]     = useState(true)
+  const [fetching, setFetching]   = useState(false)
+  const [fetchError, setFetchError] = useState(null)
 
-  const inListIds = useMemo(() => new Set(books.map(b => b.id)), [books])
-  const manualIds = useMemo(() => new Set(books.filter(b => b.manuallyAdded).map(b => b.id)), [books])
+  const query = useDebounce(inputVal, 300)
 
-  // Sort all feira books alphabetically once
-  const allSorted = useMemo(() => {
-    if (!faireBooks) return []
-    return Object.entries(faireBooks)
-      .map(([isbn, fb]) => ({ isbn, ...fb }))
-      .sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt', { sensitivity: 'base' }))
-  }, [faireBooks])
+  // Reset to first page when query or filter changes
+  useEffect(() => { setOffset(0) }, [query, lddOnly])
 
-  // Filter by query
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return allSorted
-    return allSorted.filter(fb =>
-      fb.titulo.toLowerCase().includes(q) ||
-      (fb.autor || '').toLowerCase().includes(q) ||
-      (fb.participante || '').toLowerCase().includes(q)
-    )
-  }, [query, allSorted])
+  // Fetch from Feira API via Worker
+  useEffect(() => {
+    const controller = new AbortController()
+    setFetching(true)
+    setFetchError(null)
 
-  // Reset to page 1 whenever the query changes
-  useEffect(() => { setPage(1) }, [query])
+    const feiraUrl = new URL('https://feiradolivrodelisboa.pt/_fll/wp-admin/admin-ajax.php/')
+    feiraUrl.searchParams.set('action', 'getSearchedBooks')
+    feiraUrl.searchParams.set('invisuais', '0')
+    feiraUrl.searchParams.set('livros-do-dia', lddOnly ? '1' : '0')
+    feiraUrl.searchParams.set('limit', String(LIMIT))
+    feiraUrl.searchParams.set('offset', String(offset))
+    if (query.trim()) feiraUrl.searchParams.set('search', query.trim())
 
-  // Scroll to top when the page changes
-  useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }) }, [page])
+    fetch(`${WORKER_URL}?url=${encodeURIComponent(feiraUrl.toString())}`, { signal: controller.signal })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+      .then(data => {
+        setResults(Array.isArray(data) ? data : [])
+        setHasMore(Array.isArray(data) && data.length === LIMIT)
+        setFetching(false)
+      })
+      .catch(e => {
+        if (e.name !== 'AbortError') {
+          setFetchError('Não foi possível carregar o catálogo.')
+          setFetching(false)
+        }
+      })
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    return () => controller.abort()
+  }, [query, lddOnly, offset])
 
-  function goToPage(n) {
-    setPage(Math.max(1, Math.min(totalPages, n)))
-  }
+  // Scroll to top when page changes
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }) }, [offset])
+
+  const matchedIds  = useMemo(() => new Set(books.filter(b => !b.manuallyAdded).map(b => b.id)), [books])
+  const manualIds   = useMemo(() => new Set(Object.keys(manualBooks || {})), [manualBooks])
+
+  const page = Math.floor(offset / LIMIT) + 1
 
   return (
     <div className="page">
@@ -86,50 +118,76 @@ export function CatalogPage({ faireBooks, books, onAdd, onRemove }) {
         className="search-bar"
         type="search"
         placeholder="Pesquisar por título, autor ou editora…"
-        value={query}
-        onChange={e => setQuery(e.target.value)}
+        value={inputVal}
+        onChange={e => setInputVal(e.target.value)}
         autoFocus
       />
 
-      {!faireBooks ? (
-        <p className="empty-state">A carregar catálogo…</p>
+      <div className="shelf-tabs" style={{ marginBottom: 8 }}>
+        <button
+          className={`shelf-tab ${lddOnly ? 'active' : ''}`}
+          onClick={() => setLddOnly(v => !v)}
+        >
+          ⚡ Livro do Dia
+        </button>
+      </div>
+
+      {fetchError ? (
+        <p className="empty-state">{fetchError}</p>
       ) : (
         <>
           <p className="catalog-count">
-            {filtered.length.toLocaleString('pt-PT')}{' '}
-            livro{filtered.length !== 1 ? 's' : ''}{' '}
-            {query.trim() ? `encontrado${filtered.length !== 1 ? 's' : ''}` : 'do dia na feira'}
+            {fetching ? 'A carregar…' : (
+              results.length === 0 ? 'Nenhum livro encontrado.' :
+              `${results.length === LIMIT ? `${LIMIT}+` : results.length} resultado${results.length !== 1 ? 's' : ''} · página ${page}`
+            )}
           </p>
 
           <div className="book-list">
-            {pageItems.map(({ isbn, ...fb }) => (
-              <CatalogCard
-                key={isbn}
-                fb={fb}
-                inList={inListIds.has(isbn)}
-                isManual={manualIds.has(isbn)}
-                onAdd={() => onAdd(isbn)}
-                onRemove={() => onRemove(isbn)}
-              />
-            ))}
+            {results.map(book => {
+              const isbn    = normaliseIsbn(book.isbn)
+              const isLdd   = Boolean(faireBooks?.[isbn])
+              const isManual = manualIds.has(isbn)
+              const inList  = matchedIds.has(isbn) || isManual
+              return (
+                <CatalogCard
+                  key={isbn || book.titulo}
+                  book={book}
+                  isLdd={isLdd}
+                  inList={inList}
+                  isManual={isManual}
+                  onAdd={() => onAdd(isbn, {
+                    titulo:           book.titulo,
+                    autor:            book.autor,
+                    participante:     book.participante_name,
+                    stand:            book.stand,
+                    pvp:              book.pvp,
+                    pvp_feira:        book.pvp_feira,
+                    pvp_livro_do_dia: book.pvp_livro_do_dia || null,
+                    livroDodia:       isLdd,
+                    datas:            book.livro_do_dia_datas || [],
+                    cover:            book.cover_jpg || book.cover_webp || '',
+                  })}
+                  onRemove={() => onRemove(isbn)}
+                />
+              )
+            })}
           </div>
 
-          {totalPages > 1 && (
+          {(offset > 0 || hasMore) && (
             <div className="pagination">
               <button
                 className="pagination__btn"
-                onClick={() => goToPage(page - 1)}
-                disabled={page === 1}
+                onClick={() => setOffset(o => Math.max(0, o - LIMIT))}
+                disabled={offset === 0 || fetching}
               >
                 ‹ Anterior
               </button>
-              <span className="pagination__info">
-                {page.toLocaleString('pt-PT')} / {totalPages.toLocaleString('pt-PT')}
-              </span>
+              <span className="pagination__info">Página {page}</span>
               <button
                 className="pagination__btn"
-                onClick={() => goToPage(page + 1)}
-                disabled={page === totalPages}
+                onClick={() => setOffset(o => o + LIMIT)}
+                disabled={!hasMore || fetching}
               >
                 Próxima ›
               </button>
