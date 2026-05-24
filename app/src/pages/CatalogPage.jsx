@@ -5,6 +5,7 @@ const LIMIT = 50
 const TOTAL_ALL_BOOKS = 45234  // empirically determined from the API (2026-05-24)
 
 const normaliseIsbn = isbn => (isbn || '').replace(/\D/g, '')
+const fmtCount = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
 
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = useState(value)
@@ -68,31 +69,26 @@ export function CatalogPage({ faireBooks, manualBooks, books, onAdd, onRemove })
   const [hasMore, setHasMore]       = useState(true)
   const [fetching, setFetching]     = useState(false)
   const [fetchError, setFetchError] = useState(null)
-  const [knownTotal, setKnownTotal] = useState(null)
+  const query       = useDebounce(inputVal, 300)
+  const sentinelRef = useRef(null)
+  // Ref so the IntersectionObserver callback can read the current fetching state
+  // without needing to be re-created every time it changes.
+  const fetchingRef = useRef(false)
 
-  const query = useDebounce(inputVal, 300)
-
-  // Reset to first page when query or filter changes
-  useEffect(() => { setOffset(0) }, [query, lddOnly])
-
-  // Known total: use exact counts where possible, discover from last page otherwise
+  // Reset list when search query or filter changes
   useEffect(() => {
-    if (lddOnly && faireBooks) {
-      // Exact: we have all LDD books in memory
-      setKnownTotal(Object.keys(faireBooks).length)
-    } else if (!query.trim()) {
-      // No search active: use empirically-determined constant
-      setKnownTotal(TOTAL_ALL_BOOKS)
-    } else {
-      // Searching: reset; will be filled in when we hit the last page
-      setKnownTotal(null)
-    }
-  }, [lddOnly, query, faireBooks])
+    setResults([])
+    setOffset(0)
+    setHasMore(true)
+    setFetchError(null)
+  }, [query, lddOnly])
 
-  // Fetch from Feira API via Worker
+  // Fetch one page from the Feira API via Worker
   useEffect(() => {
+    let cancelled = false
     const controller = new AbortController()
     setFetching(true)
+    fetchingRef.current = true
     setFetchError(null)
 
     const feiraUrl = new URL('https://feiradolivrodelisboa.pt/_fll/wp-admin/admin-ajax.php/')
@@ -106,31 +102,44 @@ export function CatalogPage({ faireBooks, manualBooks, books, onAdd, onRemove })
     fetch(`${WORKER_URL}?url=${encodeURIComponent(feiraUrl.toString())}`, { signal: controller.signal })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then(data => {
+        if (cancelled) return
         const arr = Array.isArray(data) ? data : []
-        setResults(arr)
+        // offset 0 → fresh list; offset > 0 → append to existing
+        setResults(prev => offset === 0 ? arr : [...prev, ...arr])
         setHasMore(arr.length === LIMIT)
-        // If this is the last page, we now know the exact total
-        if (arr.length < LIMIT) setKnownTotal(offset + arr.length)
         setFetching(false)
+        fetchingRef.current = false
       })
       .catch(e => {
-        if (e.name !== 'AbortError') {
-          setFetchError('Não foi possível carregar o catálogo.')
-          setFetching(false)
-        }
+        if (cancelled || e.name === 'AbortError') return
+        setFetchError('Não foi possível carregar o catálogo.')
+        setFetching(false)
+        fetchingRef.current = false
       })
 
-    return () => controller.abort()
+    return () => { cancelled = true; fetchingRef.current = false; controller.abort() }
   }, [query, lddOnly, offset])
 
-  // Scroll to top when page changes
-  useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }) }, [offset])
+  // IntersectionObserver — load next page when sentinel enters the viewport
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel) return
 
-  const matchedIds  = useMemo(() => new Set(books.filter(b => !b.manuallyAdded).map(b => b.id)), [books])
-  const manualIds   = useMemo(() => new Set(Object.keys(manualBooks || {})), [manualBooks])
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !fetchingRef.current) {
+          setOffset(prev => prev + LIMIT)
+        }
+      },
+      { rootMargin: '300px' }   // start loading before the user actually hits the bottom
+    )
 
-  const page       = Math.floor(offset / LIMIT) + 1
-  const totalPages = knownTotal !== null ? Math.ceil(knownTotal / LIMIT) : null
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [hasMore, results.length])  // re-bind after each new batch so the sentinel is visible
+
+  const matchedIds = useMemo(() => new Set(books.filter(b => !b.manuallyAdded).map(b => b.id)), [books])
+  const manualIds  = useMemo(() => new Set(Object.keys(manualBooks || {})), [manualBooks])
 
   return (
     <div className="page">
@@ -143,12 +152,18 @@ export function CatalogPage({ faireBooks, manualBooks, books, onAdd, onRemove })
         autoFocus
       />
 
-      <div className="shelf-tabs" style={{ marginBottom: 8 }}>
+      <div className="shelf-tabs">
+        <button
+          className={`shelf-tab ${!lddOnly ? 'active' : ''}`}
+          onClick={() => setLddOnly(false)}
+        >
+          Todos <span className="shelf-tab__count">{fmtCount(TOTAL_ALL_BOOKS)}</span>
+        </button>
         <button
           className={`shelf-tab ${lddOnly ? 'active' : ''}`}
-          onClick={() => setLddOnly(v => !v)}
+          onClick={() => setLddOnly(true)}
         >
-          ⚡ Livro do Dia
+          Livros do Dia <span className="shelf-tab__count">{faireBooks ? fmtCount(Object.keys(faireBooks).length) : '…'}</span>
         </button>
       </div>
 
@@ -156,20 +171,16 @@ export function CatalogPage({ faireBooks, manualBooks, books, onAdd, onRemove })
         <p className="empty-state">{fetchError}</p>
       ) : (
         <>
-          <p className="catalog-count">
-            {fetching ? 'A carregar…' : results.length === 0 ? 'Nenhum livro encontrado.' : (
-              knownTotal !== null
-                ? `${knownTotal.toLocaleString('pt-PT')} livro${knownTotal !== 1 ? 's' : ''}`
-                : `${results.length === LIMIT ? `${LIMIT}+` : results.length} resultado${results.length !== 1 ? 's' : ''}`
-            )}
-          </p>
+          {results.length === 0 && !fetching && (
+            <p className="catalog-count">Nenhum livro encontrado.</p>
+          )}
 
           <div className="book-list">
             {results.map(book => {
-              const isbn    = normaliseIsbn(book.isbn)
-              const isLdd   = Boolean(faireBooks?.[isbn])
+              const isbn     = normaliseIsbn(book.isbn)
+              const isLdd    = Boolean(faireBooks?.[isbn])
               const isManual = manualIds.has(isbn)
-              const inList  = matchedIds.has(isbn) || isManual
+              const inList   = matchedIds.has(isbn) || isManual
               return (
                 <CatalogCard
                   key={isbn || book.titulo}
@@ -195,26 +206,19 @@ export function CatalogPage({ faireBooks, manualBooks, books, onAdd, onRemove })
             })}
           </div>
 
-          {(offset > 0 || hasMore) && (
-            <div className="pagination">
-              <button
-                className="pagination__btn"
-                onClick={() => setOffset(o => Math.max(0, o - LIMIT))}
-                disabled={offset === 0 || fetching}
-              >
-                ‹ Anterior
-              </button>
-              <span className="pagination__info">
-                {totalPages !== null ? `${page} / ${totalPages}` : `Página ${page}`}
-              </span>
-              <button
-                className="pagination__btn"
-                onClick={() => setOffset(o => o + LIMIT)}
-                disabled={!hasMore || fetching}
-              >
-                Próxima ›
-              </button>
+          {/* Sentinel div — observed by IntersectionObserver to trigger the next page load */}
+          {hasMore && (
+            <div ref={sentinelRef} className="catalog-sentinel">
+              {fetching && results.length > 0 && (
+                <p className="catalog-count">A carregar mais…</p>
+              )}
             </div>
+          )}
+
+          {!hasMore && results.length > 0 && (
+            <p className="catalog-count" style={{ textAlign: 'center', opacity: 0.5, padding: '16px 0' }}>
+              — fim dos resultados —
+            </p>
           )}
         </>
       )}
