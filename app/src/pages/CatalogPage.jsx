@@ -1,4 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+
+const PAGE_SIZE = 50
 
 function CatalogCard({ fb, inList, isManual, onAdd, onRemove }) {
   return (
@@ -39,24 +41,42 @@ function CatalogCard({ fb, inList, isManual, onAdd, onRemove }) {
 
 export function CatalogPage({ faireBooks, books, onAdd, onRemove }) {
   const [query, setQuery] = useState('')
+  const [page, setPage] = useState(1)
 
-  const inListIds  = useMemo(() => new Set(books.map(b => b.id)), [books])
-  const manualIds  = useMemo(() => new Set(books.filter(b => b.manuallyAdded).map(b => b.id)), [books])
+  const inListIds = useMemo(() => new Set(books.map(b => b.id)), [books])
+  const manualIds = useMemo(() => new Set(books.filter(b => b.manuallyAdded).map(b => b.id)), [books])
 
-  const results = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (q.length < 2 || !faireBooks) return []
+  // Sort all feira books alphabetically once
+  const allSorted = useMemo(() => {
+    if (!faireBooks) return []
     return Object.entries(faireBooks)
-      .filter(([, fb]) =>
-        fb.titulo.toLowerCase().includes(q) ||
-        (fb.autor        || '').toLowerCase().includes(q) ||
-        (fb.participante || '').toLowerCase().includes(q)
-      )
       .map(([isbn, fb]) => ({ isbn, ...fb }))
-      .slice(0, 100)
-  }, [query, faireBooks])
+      .sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt', { sensitivity: 'base' }))
+  }, [faireBooks])
 
-  const total = faireBooks ? Object.keys(faireBooks).length : null
+  // Filter by query
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return allSorted
+    return allSorted.filter(fb =>
+      fb.titulo.toLowerCase().includes(q) ||
+      (fb.autor || '').toLowerCase().includes(q) ||
+      (fb.participante || '').toLowerCase().includes(q)
+    )
+  }, [query, allSorted])
+
+  // Reset to page 1 whenever the query changes
+  useEffect(() => { setPage(1) }, [query])
+
+  // Scroll to top when the page changes
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }) }, [page])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  function goToPage(n) {
+    setPage(Math.max(1, Math.min(totalPages, n)))
+  }
 
   return (
     <div className="page">
@@ -69,19 +89,18 @@ export function CatalogPage({ faireBooks, books, onAdd, onRemove }) {
         autoFocus
       />
 
-      {query.trim().length < 2 ? (
-        <p className="empty-state">
-          Pesquisa entre{total ? ` os ${total.toLocaleString('pt-PT')}` : ''} livros disponíveis na feira para adicionares à tua lista.
-        </p>
-      ) : results.length === 0 ? (
-        <p className="empty-state">Nenhum livro encontrado.</p>
+      {!faireBooks ? (
+        <p className="empty-state">A carregar catálogo…</p>
       ) : (
         <>
           <p className="catalog-count">
-            {results.length}{results.length === 100 ? '+' : ''} resultado{results.length !== 1 ? 's' : ''}
+            {filtered.length.toLocaleString('pt-PT')}{' '}
+            livro{filtered.length !== 1 ? 's' : ''}{' '}
+            {query.trim() ? `encontrado${filtered.length !== 1 ? 's' : ''}` : 'na feira'}
           </p>
+
           <div className="book-list">
-            {results.map(({ isbn, ...fb }) => (
+            {pageItems.map(({ isbn, ...fb }) => (
               <CatalogCard
                 key={isbn}
                 fb={fb}
@@ -92,6 +111,28 @@ export function CatalogPage({ faireBooks, books, onAdd, onRemove }) {
               />
             ))}
           </div>
+
+          {totalPages > 1 && (
+            <div className="pagination">
+              <button
+                className="pagination__btn"
+                onClick={() => goToPage(page - 1)}
+                disabled={page === 1}
+              >
+                ‹ Anterior
+              </button>
+              <span className="pagination__info">
+                {page.toLocaleString('pt-PT')} / {totalPages.toLocaleString('pt-PT')}
+              </span>
+              <button
+                className="pagination__btn"
+                onClick={() => goToPage(page + 1)}
+                disabled={page === totalPages}
+              >
+                Próxima ›
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>

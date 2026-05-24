@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { BookCard } from '../components/BookCard'
+
+const PAGE_SIZE = 50
 
 const SHELVES = [
   { key: 'all', label: 'Todos' },
@@ -9,7 +11,6 @@ const SHELVES = [
   { key: 'read', label: 'Lidos' },
   { key: 'did-not-finish', label: 'Desistiu' },
 ]
-
 
 function matches(book, query) {
   const q = query.toLowerCase()
@@ -26,11 +27,24 @@ function matches(book, query) {
 export function BooksPage({ books, onToggleWant, onToggleBought, onShowOnMap }) {
   const [shelf, setShelf] = useState('all')
   const [query, setQuery] = useState('')
+  const [page, setPage] = useState(1)
 
-  const filtered = books
-    .filter(b => shelf === 'all' || (shelf === 'want' ? b.wantToBuy : b.gr_shelf === shelf))
-    .filter(b => query === '' || matches(b, query))
-    .sort((a, b) => a.gr_title.localeCompare(b.gr_title, 'pt'))
+  const filtered = useMemo(() =>
+    books
+      .filter(b => shelf === 'all' || (shelf === 'want' ? b.wantToBuy : b.gr_shelf === shelf))
+      .filter(b => query === '' || matches(b, query))
+      .sort((a, b) => a.gr_title.localeCompare(b.gr_title, 'pt')),
+    [books, shelf, query]
+  )
+
+  // Reset to page 1 when filter/query changes
+  useEffect(() => { setPage(1) }, [shelf, query])
+
+  // Scroll to top when page changes
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }) }, [page])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const wantedBooks = books.filter(b => b.wantToBuy && !b.bought)
   const totalSavings = wantedBooks.reduce((sum, b) => {
@@ -58,7 +72,9 @@ export function BooksPage({ books, onToggleWant, onToggleBought, onShowOnMap }) 
 
       <div className="shelf-tabs">
         {SHELVES.map(s => {
-          const count = s.key === 'all' ? books.length : s.key === 'want' ? books.filter(b => b.wantToBuy).length : books.filter(b => b.gr_shelf === s.key).length
+          const count = s.key === 'all' ? books.length
+            : s.key === 'want' ? books.filter(b => b.wantToBuy).length
+            : books.filter(b => b.gr_shelf === s.key).length
           return (
             <button
               key={s.key}
@@ -72,7 +88,7 @@ export function BooksPage({ books, onToggleWant, onToggleBought, onShowOnMap }) 
       </div>
 
       <div className="book-list">
-        {filtered.map(book => (
+        {pageItems.map(book => (
           <BookCard
             key={book.id}
             book={book}
@@ -82,6 +98,28 @@ export function BooksPage({ books, onToggleWant, onToggleBought, onShowOnMap }) 
           />
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <div className="pagination">
+          <button
+            className="pagination__btn"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            ‹ Anterior
+          </button>
+          <span className="pagination__info">
+            {page.toLocaleString('pt-PT')} / {totalPages.toLocaleString('pt-PT')}
+          </span>
+          <button
+            className="pagination__btn"
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+          >
+            Próxima ›
+          </button>
+        </div>
+      )}
     </div>
   )
 }
