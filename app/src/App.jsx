@@ -8,11 +8,19 @@ import './App.css'
 
 const TABS = [
   { key: 'books', label: 'Os Meus Livros' },
-  { key: 'days', label: 'Os Meus Livros Por Dia' },
-  { key: 'map', label: 'Mapa' },
+  { key: 'days',  label: 'Os Meus Livros Por Dia' },
+  { key: 'map',   label: 'Mapa' },
 ]
 
-function AboutPage({ onStart }) {
+function AboutPage({ needsOnboarding, onStart, onSetUser, onClearUser, onRefresh, error }) {
+  const [input, setInput] = useState('')
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    const ok = onSetUser(input)
+    if (ok) setInput('')
+  }
+
   return (
     <div className="about-page">
       <div className="about-card">
@@ -25,9 +33,42 @@ function AboutPage({ onStart }) {
           <li>Encontra o stand no <strong>mapa da feira</strong> para não perderes tempo</li>
         </ul>
         <p className="about-note">Só aparecem livros incluídos nos livros do dia — para maximizares as poupanças na feira.</p>
-        <button className="about-btn" onClick={onStart}>
-          Ver os meus livros →
-        </button>
+
+        {needsOnboarding ? (
+          <form className="onboarding-form" onSubmit={handleSubmit}>
+            <p className="onboarding-instructions">
+              Para começar, vai ao teu perfil do Goodreads e copia o URL do browser.
+              <br />
+              <span className="onboarding-example">ex: goodreads.com/user/show/12345678-nome</span>
+            </p>
+            <input
+              className="onboarding-input"
+              type="text"
+              placeholder="https://www.goodreads.com/user/show/..."
+              value={input}
+              onChange={e => setInput(e.target.value)}
+            />
+            {error && <p className="onboarding-error">{error}</p>}
+            <button className="about-btn" type="submit" disabled={!input.trim()}>
+              Carregar os meus livros →
+            </button>
+          </form>
+        ) : (
+          <>
+            <button className="about-btn" onClick={onStart}>
+              Ver os meus livros →
+            </button>
+            <div className="about-account">
+              <button className="about-account-btn" onClick={onRefresh}>
+                Atualizar livros
+              </button>
+              <span className="about-account-sep">·</span>
+              <button className="about-account-btn" onClick={onClearUser}>
+                Mudar conta
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -35,7 +76,26 @@ function AboutPage({ onStart }) {
 
 export default function App() {
   const [tab, setTab] = useState('about')
-  const { books, loading, toggleWant, toggleBought } = useBooks()
+  const {
+    books, loading, loadingMessage, needsOnboarding, error,
+    setUser, clearUser, refresh, toggleWant, toggleBought,
+  } = useBooks()
+
+  function handleSetUser(input) {
+    const ok = setUser(input)
+    if (ok) setTab('books')
+    return ok
+  }
+
+  function handleRefresh() {
+    refresh()
+    setTab('books')
+  }
+
+  function handleClearUser() {
+    clearUser()
+    setTab('about')
+  }
 
   return (
     <div className="app">
@@ -64,9 +124,26 @@ export default function App() {
 
       <main className={tab === 'map' ? 'app-main app-main--fullwidth' : 'app-main'}>
         {tab === 'about' ? (
-          <AboutPage onStart={() => setTab('books')} />
+          <AboutPage
+            needsOnboarding={needsOnboarding}
+            onStart={() => setTab('books')}
+            onSetUser={handleSetUser}
+            onClearUser={handleClearUser}
+            onRefresh={handleRefresh}
+            error={error}
+          />
         ) : loading ? (
-          <div className="loading">A carregar...</div>
+          <div className="loading">
+            <div className="loading-spinner" />
+            <p className="loading-detail">{loadingMessage || 'A carregar…'}</p>
+          </div>
+        ) : error ? (
+          <div className="loading">
+            <span className="loading-error">{error}</span>
+            <button className="about-btn" style={{ marginTop: 16 }} onClick={() => setTab('about')}>
+              Voltar
+            </button>
+          </div>
         ) : tab === 'books' ? (
           <BooksPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} />
         ) : tab === 'days' ? (

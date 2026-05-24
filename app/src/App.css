@@ -123,6 +123,87 @@
 }
 .about-btn:hover { background: #1e3572; transform: translateY(-1px); }
 .about-btn:active { transform: translateY(0); }
+.about-btn:disabled { background: #a0aec0; transform: none; cursor: not-allowed; }
+
+.about-account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+.about-account-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  padding: 2px 4px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.about-account-btn:hover { color: var(--color-text); }
+.about-account-sep { color: var(--color-border); }
+
+/* ── Onboarding form ────────────────────────────────── */
+.onboarding-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.onboarding-instructions {
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  text-align: left;
+}
+.onboarding-example {
+  font-size: 0.78rem;
+  font-family: monospace;
+  color: var(--color-text-muted);
+  opacity: 0.8;
+}
+.onboarding-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--color-border);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: var(--color-surface);
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.onboarding-input:focus { border-color: #2B4A95; }
+.onboarding-error {
+  font-size: 0.82rem;
+  color: var(--color-want);
+  text-align: left;
+  margin: 0;
+}
+
+/* ── Loading state ──────────────────────────────────── */
+.loading {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--color-border);
+  border-top-color: #2B4A95;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-detail { font-size: 0.9rem; color: var(--color-text-muted); max-width: 320px; line-height: 1.5; }
+.loading-error { color: var(--color-want); }
 
 /* ── Search bar ─────────────────────────────────────── */
 .search-bar {
