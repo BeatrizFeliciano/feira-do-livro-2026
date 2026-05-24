@@ -50,7 +50,7 @@ function BookRow({ book, onToggleWant, onToggleBought, onRemove }) {
           onClick={() => onToggleBought(book.id)}
           title={book.bought ? 'Desmarcar' : 'Comprado'}
         >
-          ✓
+         {book.bought ? '✓' : '○'}
         </button>
         {onRemove && (
           <button

@@ -53,12 +53,13 @@ export function BooksPage({ books, onToggleWant, onToggleBought, onShowOnMap, on
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const wantedBooks = books.filter(b => b.wantToBuy && !b.bought)
-  const totalSavings = wantedBooks.reduce((sum, b) => {
-    if (!b.livroDodia) return sum
-    return sum + (parseFloat(b.feira_pvp) - parseFloat(b.feira_pvp_livro_do_dia))
-  }, 0)
+  // paidPrice is what you actually pay at the fair: LDD price if available, otherwise fair price
   const totalCost = wantedBooks.reduce((sum, b) =>
     sum + parseFloat(b.livroDodia ? b.feira_pvp_livro_do_dia : b.feira_pvp_feira)
+  , 0)
+  // savings = what you would have paid at full price minus what you actually pay
+  const totalSavings = wantedBooks.reduce((sum, b) =>
+    sum + (parseFloat(b.feira_pvp) - parseFloat(b.livroDodia ? b.feira_pvp_livro_do_dia : b.feira_pvp_feira))
   , 0)
 
   return (
