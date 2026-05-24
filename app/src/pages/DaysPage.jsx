@@ -21,16 +21,16 @@ function BookRow({ book, onToggleWant, onToggleBought }) {
       <img
         className="day-book-row__cover"
         src={book.feira_cover_jpg}
-        alt={book.gr_title}
+        alt={book.feira_titulo}
         loading="lazy"
         onError={e => { e.target.style.visibility = 'hidden' }}
       />
       <div className="day-book-row__info">
-        <span className="day-book-row__title">{book.gr_title}</span>
+        <span className="day-book-row__title">{book.feira_titulo}</span>
         <div className="day-book-row__meta">
           <ShelfBadge shelf={book.gr_shelf} />
           <span className="day-book-row__price">€{parseFloat(book.feira_pvp_livro_do_dia).toFixed(2)}</span>
-          <span className="day-book-row__author">{book.gr_author}</span>
+          <span className="day-book-row__author">{book.feira_autor}</span>
         </div>
       </div>
       <div className="day-book-row__actions">
@@ -46,7 +46,7 @@ function BookRow({ book, onToggleWant, onToggleBought }) {
           onClick={() => onToggleBought(book.id)}
           title={book.bought ? 'Desmarcar' : 'Comprado'}
         >
-          {book.bought ? '✓' : '○'}
+          ✓
         </button>
       </div>
     </div>
@@ -64,7 +64,7 @@ function matches(book, query) {
   return book.gr_title.toLowerCase().includes(q) || book.gr_author.toLowerCase().includes(q)
 }
 
-export function DaysPage({ books, onToggleWant, onToggleBought }) {
+export function DaysPage({ books, onToggleWant, onToggleBought, onShowOnMap }) {
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [activeDay, setActiveDay] = useState(null)
@@ -171,6 +171,13 @@ export function DaysPage({ books, onToggleWant, onToggleBought }) {
                 <div className="stand-group__header">
                   <span className="stand-code">{stand}</span>
                   <span className="stand-name">{standBooks[0].feira_participante}</span>
+                  {onShowOnMap && (
+                    <button
+                      className="btn-pin"
+                      onClick={() => onShowOnMap(stand)}
+                      title={`Ver no mapa — Stand ${stand}`}
+                    >📍</button>
+                  )}
                 </div>
                 {standBooks.map(book => (
                   <BookRow

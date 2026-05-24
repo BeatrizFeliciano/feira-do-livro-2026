@@ -14,14 +14,16 @@ const SHELVES = [
 function matches(book, query) {
   const q = query.toLowerCase()
   return (
+    book.feira_titulo.toLowerCase().includes(q) ||
     book.gr_title.toLowerCase().includes(q) ||
+    book.feira_autor.toLowerCase().includes(q) ||
     book.gr_author.toLowerCase().includes(q) ||
     (book.feira_participante || '').toLowerCase().includes(q) ||
     (book.feira_stand || '').toLowerCase().includes(q)
   )
 }
 
-export function BooksPage({ books, onToggleWant, onToggleBought }) {
+export function BooksPage({ books, onToggleWant, onToggleBought, onShowOnMap }) {
   const [shelf, setShelf] = useState('all')
   const [query, setQuery] = useState('')
 
@@ -76,6 +78,7 @@ export function BooksPage({ books, onToggleWant, onToggleBought }) {
             book={book}
             onToggleWant={onToggleWant}
             onToggleBought={onToggleBought}
+            onShowOnMap={onShowOnMap}
           />
         ))}
       </div>

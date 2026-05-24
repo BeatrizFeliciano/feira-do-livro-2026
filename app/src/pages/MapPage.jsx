@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 
 const SVG_W = 1600
 const SVG_H = 2400
@@ -36,8 +37,8 @@ function StandPopup({ stand, books, publishers, activeDay, onToggleWant, onToggl
           {standBooks.map(book => (
             <li key={book.id} className={`map-popup__book ${book.bought ? 'map-popup__book--bought' : ''}`}>
               <div className="map-popup__book-info">
-                <span className="map-popup__book-title">{book.gr_title}</span>
-                <span className="map-popup__book-author">{book.gr_author}</span>
+                <span className="map-popup__book-title">{book.feira_titulo}</span>
+                <span className="map-popup__book-author">{book.feira_autor}</span>
                 <span className="map-popup__book-price">€{parseFloat(book.feira_pvp_livro_do_dia).toFixed(2)}</span>
               </div>
               <div className="map-popup__book-actions">
@@ -60,13 +61,15 @@ function StandPopup({ stand, books, publishers, activeDay, onToggleWant, onToggl
   )
 }
 
-export function MapPage({ books, onToggleWant, onToggleBought }) {
+export function MapPage({ books, onToggleWant, onToggleBought, openStand, onStandOpened }) {
   const [coords, setCoords] = useState(null)
   const [publishers, setPublishers] = useState({})
   const [query, setQuery] = useState('')
   const [activeDay, setActiveDay] = useState(null)
   const [selectedStand, setSelectedStand] = useState(null)
-  const [popupPos, setPopupPos] = useState({ top: 0, left: 0 })
+  // Fixed viewport pixel coordinates for the portal-rendered popup
+  const [popupPos, setPopupPos] = useState({ top: 0, bottom: 'auto', left: 0 })
+  const [imgLoaded, setImgLoaded] = useState(false)
   const containerRef = useRef(null)
   const imgRef = useRef(null)
 
@@ -129,7 +132,7 @@ export function MapPage({ books, onToggleWant, onToggleBought }) {
     if (q.length >= 2) {
       books.forEach(b => {
         if (!b.feira_stand) return
-        if (b.gr_title.toLowerCase().includes(qLow) || b.gr_author.toLowerCase().includes(qLow)) {
+        if (b.feira_titulo.toLowerCase().includes(qLow) || b.gr_title.toLowerCase().includes(qLow) || b.feira_autor.toLowerCase().includes(qLow)) {
           result.add(b.feira_stand)
         }
       })
@@ -138,25 +141,112 @@ export function MapPage({ books, onToggleWant, onToggleBought }) {
     return result
   }, [query, coords, publishers, books])
 
+  // Place the popup next to a given viewport anchor point.
+  // anchorX/anchorY come from the tapped marker element's bounding rect (most
+  // reliable) or, for programmatic opens, from the img rect + SVG maths.
+  function placePopup(anchorX, anchorY) {
+    const vw     = window.innerWidth
+    const vh     = window.innerHeight
+    const PW     = Math.min(280, vw - 16)   // matches CSS min(280px, 100vw-16px)
+    const PH     = 320                        // CSS max-height — used for scoring only
+    const GAP    = 12
+    const MARGIN = 8
+
+    // Scoring uses worst-case PH for all directions.
+    const visibleArea = (l, t) => {
+      const visW = Math.max(0, Math.min(l + PW, vw - MARGIN) - Math.max(l, MARGIN))
+      const visH = Math.max(0, Math.min(t + PH, vh - MARGIN) - Math.max(t, MARGIN))
+      return visW * visH
+    }
+
+    // Four candidates. For each:
+    //   l/t  = top-left corner used for scoring (worst-case PH for "above")
+    //   cssBottom = if set, use CSS `bottom` instead of `top` so the popup's
+    //               bottom edge snaps to the anchor regardless of actual height.
+    const candidates = [
+      // Right of anchor — slide vertically
+      { l: anchorX + GAP,       t: anchorY - PH / 2,    cssBottom: null,              freeY: true  },
+      // Left of anchor — slide vertically
+      { l: anchorX - GAP - PW,  t: anchorY - PH / 2,    cssBottom: null,              freeY: true  },
+      // Above anchor — anchor bottom edge; slide horizontally
+      { l: anchorX - PW / 2,    t: anchorY - GAP - PH,  cssBottom: vh-(anchorY-GAP),  freeX: true  },
+      // Below anchor — slide horizontally
+      { l: anchorX - PW / 2,    t: anchorY + GAP,        cssBottom: null,              freeX: true  },
+    ]
+
+    const best = candidates
+      .map(c => {
+        let { l, t } = c
+        if (c.freeY) t = Math.max(MARGIN, Math.min(t, vh - PH - MARGIN))
+        if (c.freeX) l = Math.max(MARGIN, Math.min(l, vw - PW - MARGIN))
+        return { l, t, cssBottom: c.cssBottom, area: visibleArea(l, t) }
+      })
+      .reduce((a, b) => b.area > a.area ? b : a)
+
+    setPopupPos({ top: best.cssBottom != null ? 'auto' : best.t, bottom: best.cssBottom ?? 'auto', left: best.l })
+  }
+
+  // Open programmatically (pin button auto-open): derive anchor from img rect.
+  const openPopupForStand = useCallback((code) => {
+    if (!coords || !coords[code] || !imgRef.current) return
+    const pos     = coords[code]
+    const iRect   = imgRef.current.getBoundingClientRect()
+    const anchorX = iRect.left + (pos.x / SVG_W) * iRect.width
+    const anchorY = iRect.top  + (pos.y / SVG_H) * iRect.height
+    placePopup(anchorX, anchorY)
+    setSelectedStand(code)
+  }, [coords])
+
   function handleMarkerClick(code, e) {
     e.stopPropagation()
     if (selectedStand === code) { setSelectedStand(null); return }
-    const img = imgRef.current
-    if (!img || !coords) return
-    const iRect = img.getBoundingClientRect()
-    const pos = coords[code]
-    // Popup anchor is inside .map-inner (position: relative), so coordinates
-    // are relative to the image's own top-left — no container offset needed.
-    const px = (pos.x / SVG_W) * iRect.width
-    const py = (pos.y / SVG_H) * iRect.height
-    // Quadrant-based placement to avoid going off-screen
-    const openLeft = pos.x / SVG_W > 0.55
-    const openDown = pos.y / SVG_H > 0.55
-    setPopupPos({ top: py, left: px, openLeft, openDown })
+    // Use the tapped element's own bounding rect — always exactly right,
+    // regardless of scroll position or image load timing.
+    const r = e.currentTarget.getBoundingClientRect()
+    placePopup(r.left + r.width / 2, r.top + r.height / 2)
     setSelectedStand(code)
   }
 
+  // Auto-open a stand popup when the parent navigates here via the pin button.
+  // Wait for both coords and the image to have laid out (imgLoaded) so getBoundingClientRect is reliable.
+  useEffect(() => {
+    if (!openStand || !coords || !imgLoaded) return
+    openPopupForStand(openStand)
+    onStandOpened?.()
+  }, [openStand, coords, imgLoaded, openPopupForStand, onStandOpened])
+
+  // Close popup on scroll/resize so the fixed position doesn't drift
+  useEffect(() => {
+    if (!selectedStand) return
+    const close = () => setSelectedStand(null)
+    window.addEventListener('resize', close)
+    const vp = containerRef.current
+    if (vp) vp.addEventListener('scroll', close)
+    return () => {
+      window.removeEventListener('resize', close)
+      if (vp) vp.removeEventListener('scroll', close)
+    }
+  }, [selectedStand])
+
   const standsWithBooks = Object.keys(booksByStand)
+
+  const popupPortal = selectedStand && coords && createPortal(
+    <div
+      className="map-popup-anchor"
+      style={{ position: 'fixed', top: popupPos.top, bottom: popupPos.bottom, left: popupPos.left, zIndex: 9999 }}
+    >
+      <StandPopup
+        stand={selectedStand}
+        books={books}
+        publishers={publishers}
+        activeDay={activeDay}
+        onToggleWant={onToggleWant}
+        onToggleBought={onToggleBought}
+        onClose={() => setSelectedStand(null)}
+      />
+    </div>,
+    document.body
+  )
 
   return (
     <div className="map-page">
@@ -198,6 +288,7 @@ export function MapPage({ books, onToggleWant, onToggleBought }) {
             src={import.meta.env.BASE_URL + 'mapa2026.svg'}
             alt="Mapa Feira do Livro"
             className="map-svg-img"
+            onLoad={() => setImgLoaded(true)}
           />
 
           {coords && (
@@ -230,29 +321,10 @@ export function MapPage({ books, onToggleWant, onToggleBought }) {
               })}
             </div>
           )}
-
-          {selectedStand && coords && (
-            <div
-              className={[
-                'map-popup-anchor',
-                popupPos.openLeft ? 'map-popup-anchor--open-left' : '',
-                popupPos.openDown ? 'map-popup-anchor--open-down' : '',
-              ].filter(Boolean).join(' ')}
-              style={{ top: popupPos.top, left: popupPos.left }}
-            >
-              <StandPopup
-                stand={selectedStand}
-                books={books}
-                publishers={publishers}
-                activeDay={activeDay}
-                onToggleWant={onToggleWant}
-                onToggleBought={onToggleBought}
-                onClose={() => setSelectedStand(null)}
-              />
-            </div>
-          )}
         </div>
       </div>
+
+      {popupPortal}
     </div>
   )
 }

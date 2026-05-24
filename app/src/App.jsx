@@ -76,6 +76,7 @@ function AboutPage({ needsOnboarding, onStart, onSetUser, onClearUser, onRefresh
 
 export default function App() {
   const [tab, setTab] = useState('about')
+  const [openStand, setOpenStand] = useState(null)
   const {
     books, loading, loadingMessage, needsOnboarding, error,
     setUser, clearUser, refresh, toggleWant, toggleBought,
@@ -95,6 +96,11 @@ export default function App() {
   function handleClearUser() {
     clearUser()
     setTab('about')
+  }
+
+  function handleShowOnMap(stand) {
+    setOpenStand(stand)
+    setTab('map')
   }
 
   return (
@@ -145,11 +151,11 @@ export default function App() {
             </button>
           </div>
         ) : tab === 'books' ? (
-          <BooksPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} />
+          <BooksPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} onShowOnMap={handleShowOnMap} />
         ) : tab === 'days' ? (
-          <DaysPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} />
+          <DaysPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} onShowOnMap={handleShowOnMap} />
         ) : (
-          <MapPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} />
+          <MapPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} openStand={openStand} onStandOpened={() => setOpenStand(null)} />
         )}
       </main>
     </div>

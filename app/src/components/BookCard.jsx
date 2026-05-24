@@ -26,27 +26,34 @@ function PriceBlock({ pvp, pvpFeira, pvpDia }) {
   )
 }
 
-export function BookCard({ book, onToggleWant, onToggleBought }) {
+export function BookCard({ book, onToggleWant, onToggleBought, onShowOnMap }) {
   return (
     <div className={`book-card ${book.bought ? 'book-card--bought' : ''}`}>
       <img
         className="book-card__cover"
         src={book.feira_cover_jpg}
-        alt={book.gr_title}
+        alt={book.feira_titulo}
         loading="lazy"
         onError={e => { e.target.style.visibility = 'hidden' }}
       />
       <div className="book-card__body">
         <div className="book-card__header">
           <div className="book-card__title-row">
-            <span className="book-card__title">{book.gr_title}</span>
+            <span className="book-card__title">{book.feira_titulo}</span>
           </div>
-          <span className="book-card__author">{book.gr_author}</span>
+          <span className="book-card__author">{book.feira_autor}</span>
         </div>
         <div className="book-card__meta">
           <ShelfBadge shelf={book.gr_shelf} />
           <Stars rating={book.gr_my_rating} />
           <span className="book-card__stand">{book.feira_stand} · {book.feira_participante}</span>
+          {book.feira_stand && onShowOnMap && (
+            <button
+              className="btn-pin"
+              onClick={() => onShowOnMap(book.feira_stand)}
+              title={`Ver no mapa — Stand ${book.feira_stand}`}
+            >📍</button>
+          )}
         </div>
         <PriceBlock
           pvp={book.feira_pvp}
@@ -74,7 +81,7 @@ export function BookCard({ book, onToggleWant, onToggleBought }) {
           onClick={() => onToggleBought(book.id)}
           title={book.bought ? 'Marcar como não comprado' : 'Marcar como comprado'}
         >
-          {book.bought ? '✓ Comprado' : '○ Comprado'}
+          {book.bought ? '✓ Comprado' : '✓ Comprado'}
         </button>
       </div>
     </div>

@@ -108,6 +108,8 @@ function createMatch(gr, isbn, fb) {
     gr_author:              gr.author,
     gr_shelf:               gr.shelf,
     gr_my_rating:           gr.rating,
+    feira_titulo:           fb.titulo,
+    feira_autor:            fb.autor,
     feira_participante:     fb.participante,
     feira_stand:            fb.stand,
     feira_pvp:              fb.pvp,
@@ -201,6 +203,7 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
     }
 
     if (bestScore >= FUZZY_THRESHOLD && bestFb) {
+      console.log(`[step2] "${gr.title}" → "${bestFb.titulo}" (score ${bestScore.toFixed(1)})`)
       seenFaire.add(bestFb.isbn)
       matched.push(createMatch(gr, bestFb.isbn, bestFb))
     } else {
@@ -249,6 +252,7 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
     else               accept = bestScore >= 65
 
     if (accept && bestFb && !seenFaire.has(bestFb.isbn)) {
+      console.log(`[step3] "${gr.title}" → "${bestFb.titulo}" (n=${n}, score ${bestScore.toFixed(1)})`)
       seenFaire.add(bestFb.isbn)
       matched.push(createMatch(gr, bestFb.isbn, bestFb))
     }

@@ -3,7 +3,7 @@ Generate app/public/feira_books.json from the full feira catalogue.
 Keyed by normalised ISBN13 for fast client-side lookup.
 Run from the project root: python generate_feira_books.py
 """
-import csv, json, re
+import csv, json, re, html
 
 def normalize_isbn(raw):
     return re.sub(r'\D', '', raw or '')
@@ -20,10 +20,11 @@ with open(src, encoding='utf-8') as f:
         datas = [d.strip() for d in row['livro_do_dia_datas'].split(',') if d.strip()]
         if not datas:
             continue  # skip books with no discount dates
+        u = lambda s: html.unescape(s or '')
         books[isbn] = {
-            'titulo':           row['titulo'],
-            'autor':            row['autor'],
-            'participante':     row['participante_name'],
+            'titulo':           u(row['titulo']),
+            'autor':            u(row['autor']),
+            'participante':     u(row['participante_name']),
             'stand':            row['stand'],
             'pvp':              row['pvp'],
             'pvp_feira':        row['pvp_feira'],
