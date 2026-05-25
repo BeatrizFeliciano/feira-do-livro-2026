@@ -41,12 +41,13 @@ function AboutPage({ needsOnboarding, loading, loadingMessage, onStart, onSetUse
     <div className="about-page">
       <div className="about-card">
         <img src={logoUrl} alt="My Books" className="about-logo" />
-        <p className="about-subtitle">A tua guia para a<br />Feira do Livro de Lisboa 2026</p>
+        <p className="about-subtitle">Os meus livros na<br/>Feira do Livro de Lisboa 2026</p>
         <ul className="about-features">
-          <li>Navega o catálogo completo da feira e marca os livros que <strong>queres comprar</strong></li>
-          <li>Liga o teu Goodreads para cruzar automaticamente a tua lista com os livros disponíveis</li>
-          <li>Vê em que dias cada livro tem desconto e quanto poupas</li>
-          <li>Encontra o stand no <strong>mapa da feira</strong> para não perderes tempo</li>
+          <li>Explora o <strong>catálogo completo</strong> da feira e adiciona livros à tua lista</li>
+          <li>Vê quais os <strong>livros do dia</strong> com desconto e em que dias estão disponíveis</li>
+          <li>Liga o <strong>Goodreads</strong> para encontrares automaticamente os teus livros na feira</li>
+          <li>Acompanha o que já <strong>compraste</strong> e quanto <strong>poupaste</strong></li>
+          <li>Localiza qualquer stand no <strong>mapa da feira</strong></li>
         </ul>
 
         {needsOnboarding ? (

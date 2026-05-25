@@ -80,7 +80,8 @@ function CatalogCard({ book, inList, grShelfLabel, onAdd, onRemove }) {
 
 export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAdd, onRemove, onConnectGoodreads }) {
   const [inputVal, setInputVal]     = useState('')
-  const [mode, setMode]             = useState('all')  // 'all' | 'ldd' | gr_shelf key
+  const [catalogFilter, setCatalogFilter] = useState('all')   // 'all' | 'ldd'
+  const [grFilter, setGrFilter]           = useState(null)    // null | 'goodreads-all' | shelf key
   const [offset, setOffset]         = useState(0)
   const [results, setResults]       = useState([])
   const [hasMore, setHasMore]       = useState(true)
@@ -90,7 +91,7 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
   const sentinelRef = useRef(null)
   const fetchingRef = useRef(false)
 
-  const isApiMode = mode === 'all' || mode === 'ldd'
+  const isApiMode = grFilter === null   // no GR filter → fetch from API
   const isGrMode  = !isApiMode
 
   // ISBN → gr_shelf for all GR-matched books
@@ -127,29 +128,30 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
   // Books currently in Os Meus Livros (manually added)
   const manualIds = useMemo(() => new Set(Object.keys(manualBooks || {})), [manualBooks])
 
-  // GR shelf books visible in the current shelf tab, filtered by search
+  // GR shelf books — filtered by shelf, catalogFilter (ldd), and search
   const grShelfBooks = useMemo(() => {
     if (!isGrMode) return []
-    const all = (mode === 'goodreads-all'
+    let all = (grFilter === 'goodreads-all'
       ? Object.values(grBooksByShelf).flat()
-      : (grBooksByShelf[mode] || [])
+      : (grBooksByShelf[grFilter] || [])
     ).slice().sort((a, b) => (a.titulo || '').localeCompare(b.titulo || '', 'pt'))
+    if (catalogFilter === 'ldd') all = all.filter(b => Boolean(b.pvp_livro_do_dia))
     if (!query.trim()) return all
     const q = query.toLowerCase()
     return all.filter(b =>
       (b.titulo || '').toLowerCase().includes(q) ||
       (b.autor  || '').toLowerCase().includes(q)
     )
-  }, [isGrMode, grBooksByShelf, mode, query])
+  }, [isGrMode, grBooksByShelf, grFilter, catalogFilter, query])
 
-  // Reset API list when mode or debounced query changes
+  // Reset API list when catalogFilter, grFilter, or query changes
   useEffect(() => {
     if (!isApiMode) return
     setResults([])
     setOffset(0)
     setHasMore(true)
     setFetchError(null)
-  }, [query, mode, isApiMode])
+  }, [query, catalogFilter, isApiMode])
 
   // Fetch one page from the Feira API (only in API modes)
   useEffect(() => {
@@ -163,7 +165,7 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
     const feiraUrl = new URL('https://feiradolivrodelisboa.pt/_fll/wp-admin/admin-ajax.php/')
     feiraUrl.searchParams.set('action', 'getSearchedBooks')
     feiraUrl.searchParams.set('invisuais', '0')
-    feiraUrl.searchParams.set('livros-do-dia', mode === 'ldd' ? '1' : '0')
+    feiraUrl.searchParams.set('livros-do-dia', catalogFilter === 'ldd' ? '1' : '0')
     feiraUrl.searchParams.set('limit', String(LIMIT))
     feiraUrl.searchParams.set('offset', String(offset))
     if (query.trim()) feiraUrl.searchParams.set('search', query.trim())
@@ -194,7 +196,7 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
       })
 
     return () => { cancelled = true; fetchingRef.current = false; controller.abort() }
-  }, [query, mode, offset, isApiMode])
+  }, [query, catalogFilter, offset, isApiMode])
 
   // IntersectionObserver for infinite scroll (API modes only)
   useEffect(() => {
@@ -288,10 +290,10 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
 
       <div className="catalog-filter-row">
         <div className="shelf-tabs shelf-tabs--catalog">
-          <button className={`shelf-tab ${mode === 'all' ? 'active' : ''}`} onClick={() => setMode('all')}>
+          <button className={`shelf-tab ${catalogFilter === 'all' ? 'active' : ''}`} onClick={() => setCatalogFilter('all')}>
             Todos <span className="shelf-tab__count">{fmtCount(TOTAL_ALL_BOOKS)}</span>
           </button>
-          <button className={`shelf-tab ${mode === 'ldd' ? 'active' : ''}`} onClick={() => setMode('ldd')}>
+          <button className={`shelf-tab ${catalogFilter === 'ldd' ? 'active' : ''}`} onClick={() => setCatalogFilter('ldd')}>
             Livros do Dia <span className="shelf-tab__count">{fmtCount(TOTAL_LDD_BOOKS)}</span>
           </button>
         </div>
@@ -300,16 +302,16 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
           <div className="shelf-tabs shelf-tabs--gr">
             <span className="shelf-tabs__label">Goodreads</span>
             <button
-              className={`shelf-tab shelf-tab--gr ${mode === 'goodreads-all' ? 'active' : ''}`}
-              onClick={() => setMode('goodreads-all')}
+              className={`shelf-tab shelf-tab--gr ${grFilter === 'goodreads-all' ? 'active' : ''}`}
+              onClick={() => setGrFilter(f => f === 'goodreads-all' ? null : 'goodreads-all')}
             >
               Todos <span className="shelf-tab__count">{grBooks.length}</span>
             </button>
             {availableGrShelves.map(shelf => (
               <button
                 key={shelf}
-                className={`shelf-tab shelf-tab--gr ${mode === shelf ? 'active' : ''}`}
-                onClick={() => setMode(shelf)}
+                className={`shelf-tab shelf-tab--gr ${grFilter === shelf ? 'active' : ''}`}
+                onClick={() => setGrFilter(f => f === shelf ? null : shelf)}
               >
                 {GR_SHELF_LABELS[shelf]}
                 <span className="shelf-tab__count">{(grBooksByShelf[shelf] || []).length}</span>
