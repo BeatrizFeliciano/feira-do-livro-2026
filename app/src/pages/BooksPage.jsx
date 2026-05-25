@@ -112,7 +112,7 @@ function matches(book, query) {
 
 // ── Main component ────────────────────────────────────────
 
-export function BooksPage({ books, loading, loadingMessage, error, onToggleWant, onToggleBought, onShowOnMap }) {
+export function BooksPage({ books, loading, loadingMessage, error, onToggleWant, onToggleBought, onShowOnMap, onNavigateToCatalog }) {
   const [status, setStatus]       = useState('all')
   const [query, setQuery]         = useState('')
   const [page, setPage]           = useState(1)
@@ -167,6 +167,12 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
   )
   const noDatByStand = useMemo(() => groupByStand(noDatBooks), [noDatBooks])
 
+  // Books used for pill counts — respects active day filter when in days view
+  const booksForCount = useMemo(() => {
+    if (viewMode !== 'days' || !activeDay) return books
+    return books.filter(b => b.discountDates.includes(activeDay) || b.discountDates.length === 0)
+  }, [books, viewMode, activeDay])
+
   // List-view pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageItems  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -201,6 +207,17 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
   if (error && books.length === 0) return (
     <div className="loading">
       <span className="loading-error">{error}</span>
+    </div>
+  )
+  if (!loading && books.length === 0) return (
+    <div className="empty-books">
+      <p className="empty-books__msg">Ainda não tens livros na tua lista.</p>
+      <p className="empty-books__hint">Explora o catálogo e adiciona os livros que queres comprar.</p>
+      {onNavigateToCatalog && (
+        <button className="empty-books__btn" onClick={onNavigateToCatalog}>
+          Ir para o Catálogo →
+        </button>
+      )}
     </div>
   )
 
@@ -261,10 +278,10 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
         <div className="shelf-tabs">
           {STATUS_FILTERS.map(s => {
             const count =
-              s.key === 'all'        ? books.length
-              : s.key === 'ldd'      ? books.filter(b => b.livroDodia).length
-              : s.key === 'not-bought' ? books.filter(b => b.wantToBuy && !b.bought).length
-              : books.filter(b => b.wantToBuy && b.bought).length
+              s.key === 'all'          ? booksForCount.length
+              : s.key === 'ldd'        ? booksForCount.filter(b => b.livroDodia).length
+              : s.key === 'not-bought' ? booksForCount.filter(b => b.wantToBuy && !b.bought).length
+              : booksForCount.filter(b => b.wantToBuy && b.bought).length
             return (
               <button
                 key={s.key}

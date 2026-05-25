@@ -54,11 +54,8 @@ function AboutPage({ needsOnboarding, loading, loadingMessage, onStart, onSetUse
           <>
             <form className="onboarding-form" onSubmit={handleSubmit}>
               <p className="onboarding-instructions">
-                Liga o Goodreads para cruzar a tua lista com os livros da feira.
-                <br />
+                Liga o Goodreads para cruzar a tua lista com os livros da feira.{' '}
                 Copia o URL do teu perfil do Goodreads:
-                <br />
-                <span className="onboarding-example">ex: goodreads.com/user/show/12345678-nome</span>
               </p>
               <input
                 className="onboarding-input"
@@ -196,7 +193,7 @@ export default function App() {
         </div>
       )}
 
-      <main className={tab === 'map' ? 'app-main app-main--fullwidth' : 'app-main'}>
+      <main className={tab === 'map' ? 'app-main app-main--fullwidth' : tab === 'about' ? 'app-main app-main--about' : 'app-main'}>
         {tab === 'about' ? (
           <AboutPage
             needsOnboarding={needsOnboarding}
@@ -217,7 +214,7 @@ export default function App() {
             onToggleWant={toggleWant}
             onToggleBought={toggleBought}
             onShowOnMap={handleShowOnMap}
-
+            onNavigateToCatalog={() => navigate('catalog')}
           />
         ) : tab === 'catalog' ? (
           <CatalogPage manualBooks={manualBooks} books={books} grBooks={grBooks} needsOnboarding={needsOnboarding} onAdd={addManual} onRemove={removeManual} onConnectGoodreads={() => navigate('about')} />

@@ -271,6 +271,21 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
   // Which GR shelves actually have books
   const availableGrShelves = GR_SHELF_ORDER.filter(s => (grBooksByShelf[s] || []).length > 0)
 
+  // Base GR books for the active grFilter (no catalogFilter applied) — used for catalog pill counts
+  const grFilteredBase = useMemo(() => {
+    if (!isGrMode) return []
+    return grFilter === 'goodreads-all'
+      ? Object.values(grBooksByShelf).flat()
+      : (grBooksByShelf[grFilter] || [])
+  }, [isGrMode, grFilter, grBooksByShelf])
+
+  // Catalog pill counts — reflect active GR filter when in GR mode
+  const countAll = isGrMode ? grFilteredBase.length                                          : TOTAL_ALL_BOOKS
+  const countLdd = isGrMode ? grFilteredBase.filter(b => Boolean(b.pvp_livro_do_dia)).length : TOTAL_LDD_BOOKS
+
+  // GR pill counts — reflect active catalog filter
+  const grCount = (books) => catalogFilter === 'ldd' ? books.filter(b => Boolean(b.pvp_livro_do_dia)).length : books.length
+
   return (
     <div className="page">
       <input
@@ -291,10 +306,10 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
       <div className="catalog-filter-row">
         <div className="shelf-tabs shelf-tabs--catalog">
           <button className={`shelf-tab ${catalogFilter === 'all' ? 'active' : ''}`} onClick={() => setCatalogFilter('all')}>
-            Todos <span className="shelf-tab__count">{fmtCount(TOTAL_ALL_BOOKS)}</span>
+            Todos <span className="shelf-tab__count">{fmtCount(countAll)}</span>
           </button>
           <button className={`shelf-tab ${catalogFilter === 'ldd' ? 'active' : ''}`} onClick={() => setCatalogFilter('ldd')}>
-            Livros do Dia <span className="shelf-tab__count">{fmtCount(TOTAL_LDD_BOOKS)}</span>
+            Livros do Dia <span className="shelf-tab__count">{fmtCount(countLdd)}</span>
           </button>
         </div>
 
@@ -305,7 +320,7 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
               className={`shelf-tab shelf-tab--gr ${grFilter === 'goodreads-all' ? 'active' : ''}`}
               onClick={() => setGrFilter(f => f === 'goodreads-all' ? null : 'goodreads-all')}
             >
-              Todos <span className="shelf-tab__count">{grBooks.length}</span>
+              Todos <span className="shelf-tab__count">{grCount(Object.values(grBooksByShelf).flat())}</span>
             </button>
             {availableGrShelves.map(shelf => (
               <button
@@ -314,7 +329,7 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
                 onClick={() => setGrFilter(f => f === shelf ? null : shelf)}
               >
                 {GR_SHELF_LABELS[shelf]}
-                <span className="shelf-tab__count">{(grBooksByShelf[shelf] || []).length}</span>
+                <span className="shelf-tab__count">{grCount(grBooksByShelf[shelf] || [])}</span>
               </button>
             ))}
           </div>
