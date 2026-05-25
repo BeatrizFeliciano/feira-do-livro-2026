@@ -68,16 +68,28 @@
 }
 .app-tabs { display: flex; gap: 0; margin-left: auto; }
 .app-tab {
-  padding: 8px 20px;
+  padding: 8px 14px;
   border: none;
   background: transparent;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 500;
   color: var(--color-text-muted);
   border-bottom: 2px solid transparent;
   transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  text-align: center;
 }
 .app-tab.active { color: var(--color-accent); border-bottom-color: var(--color-accent); }
+@media (max-width: 640px) {
+  .app-tabs { flex: 1; margin-left: 0; }
+  .app-tab {
+    flex: 1;
+    font-size: 0.78rem;
+    padding: 6px 4px;
+    white-space: normal;
+    line-height: 1.2;
+  }
+}
 
 .app-main { max-width: 800px; margin: 0 auto; width: 100%; padding: 0 16px 32px; }
 .app-main--fullwidth { max-width: 100%; padding: 0; }
@@ -318,10 +330,12 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 .search-bar--inline {
   flex: 1;
   width: auto;
+  min-width: 0;
 }
 
 /* Row 2: status filters + day selector */
@@ -344,6 +358,14 @@
   padding-bottom: 0;
   font-size: 0.85rem;
 }
+@media (max-width: 640px) {
+  .books-filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .books-filter-row .shelf-tabs { flex: unset; }
+  .map-day-select--inline { width: 100%; }
+}
 
 /* View toggle (Lista / Por dia) */
 .view-toggle {
@@ -364,6 +386,8 @@
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
+  flex: 1;
+  text-align: center;
 }
 .view-toggle__btn + .view-toggle__btn {
   border-left: 1.5px solid var(--color-border);
@@ -371,6 +395,9 @@
 .view-toggle__btn.active {
   background: var(--color-accent);
   color: white;
+}
+@media (max-width: 480px) {
+  .view-toggle { flex: 1; }
 }
 
 /* "Sem data" day section — slightly muted */
