@@ -45,7 +45,7 @@ function StandPopup({ stand, books, publishers, activeDay, onToggleWant, onToggl
                 <button
                   className={`btn-action btn-sm btn-want ${book.wantToBuy ? 'active' : ''}`}
                   onClick={() => onToggleWant(book.id)}
-                  title={book.wantToBuy ? 'Remover da lista' : 'Quero comprar'}
+                  title={book.wantToBuy ? 'Remover da lista' : 'Para comprar'}
                 >{book.wantToBuy ? '♥' : '♡'}</button>
                 <button
                   className={`btn-action btn-sm btn-bought ${book.bought ? 'active' : ''}`}
@@ -66,6 +66,7 @@ export function MapPage({ books, onToggleWant, onToggleBought, openStand, onStan
   const [publishers, setPublishers] = useState({})
   const [query, setQuery] = useState('')
   const [activeDay, setActiveDay] = useState(null)
+  const [markerFilter, setMarkerFilter] = useState(null) // null | 'want' | 'bought'
   const [selectedStand, setSelectedStand] = useState(null)
   // Fixed viewport pixel coordinates for the portal-rendered popup
   const [popupPos, setPopupPos] = useState({ top: 0, bottom: 'auto', left: 0 })
@@ -99,13 +100,17 @@ export function MapPage({ books, onToggleWant, onToggleBought, openStand, onStan
     return map
   }, [books, activeDay])
 
-  // Stand colour classification
+  // Stand colour classification (respects markerFilter)
   function standClass(code) {
-    const standBooks = booksByStand[code] || []
+    const standBooks  = booksByStand[code] || []
     if (standBooks.length === 0) return 'none'
-    if (standBooks.some(b => b.bought)) return 'bought'
-    if (standBooks.some(b => b.wantToBuy)) return 'want'
-    return 'list'
+    const hasBought   = standBooks.some(b => b.bought)
+    const hasWantOnly = standBooks.some(b => b.wantToBuy && !b.bought)
+    if (markerFilter === 'want')   return hasWantOnly ? 'want'   : 'none'
+    if (markerFilter === 'bought') return hasBought   ? 'bought' : 'none'
+    if (hasBought)   return 'bought'
+    if (hasWantOnly) return 'want'
+    return 'none'
   }
 
   // Multi-target search: stand code, publisher name, book title/author
@@ -272,9 +277,14 @@ export function MapPage({ books, onToggleWant, onToggleBought, openStand, onStan
           </select>
         </div>
         <div className="map-legend">
-          <span className="legend-item legend-item--want">Quero comprar</span>
-          <span className="legend-item legend-item--list">Na lista</span>
-          <span className="legend-item legend-item--bought">Comprado</span>
+          <button
+            className={`legend-item legend-item--want ${markerFilter === 'want' ? 'legend-item--active' : ''}`}
+            onClick={() => setMarkerFilter(f => f === 'want' ? null : 'want')}
+          >Para comprar</button>
+          <button
+            className={`legend-item legend-item--bought ${markerFilter === 'bought' ? 'legend-item--active' : ''}`}
+            onClick={() => setMarkerFilter(f => f === 'bought' ? null : 'bought')}
+          >Comprado</button>
         </div>
       </div>
 

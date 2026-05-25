@@ -69,9 +69,9 @@ function CatalogCard({ book, inList, grShelfLabel, onAdd, onRemove }) {
         <button
           className={`btn-action btn-want ${inList ? 'active' : ''}`}
           onClick={inList ? onRemove : onAdd}
-          title={inList ? 'Remover da lista' : 'Quero comprar'}
+          title={inList ? 'Remover da lista' : 'Para comprar'}
         >
-          {inList ? '♥ Quero' : '♡ Quero'}
+          {inList ? '♥ Para' : '♡ Para'}
         </button>
       </div>
     </div>

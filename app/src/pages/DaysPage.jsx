@@ -41,7 +41,7 @@ function BookRow({ book, onToggleWant, onToggleBought, onRemove }) {
         <button
           className={`btn-action btn-want btn-sm ${book.wantToBuy ? 'active' : ''}`}
           onClick={() => onToggleWant(book.id)}
-          title={book.wantToBuy ? 'Remover' : 'Quero comprar'}
+          title={book.wantToBuy ? 'Remover' : 'Para comprar'}
         >
           {book.wantToBuy ? '♥' : '♡'}
         </button>

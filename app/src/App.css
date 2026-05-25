@@ -479,7 +479,7 @@
   color: var(--color-accent);
 }
 .summary-bar__pending { color: var(--color-accent); }
-.summary-bar__bought  { color: #2d6a4f; opacity: 0.6; }
+.summary-bar__bought  { color: var(--color-bought); opacity: 0.6; }
 
 /* ── Shelf badge ────────────────────────────────────── */
 .shelf-badge {
@@ -782,31 +782,41 @@
 
 .map-legend {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
   margin-top: 8px;
   margin-left: 5px;
 }
 .legend-item {
-  font-size: 0.78rem;
-  font-weight: 600;
+  font-size: 0.85rem;
+  font-weight: 500;
   display: flex;
   align-items: center;
   gap: 5px;
+  padding: 8px 12px;
+  border-radius: 20px;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  font-family: inherit;
 }
 .legend-item::before {
   content: '';
   display: inline-block;
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
-.legend-item--want::before  { background: #c0392b; }
-.legend-item--list::before  { background: #1a73e8; }
-.legend-item--bought::before { background: #2d6a4f; }
-.legend-item--want  { color: #c0392b; }
-.legend-item--list  { color: #1a73e8; }
-.legend-item--bought { color: #2d6a4f; }
+.legend-item--want::before   { background: #c0392b; }
+.legend-item--bought::before { background: var(--color-bought); }
+.legend-item--want.legend-item--active   { background: #c0392b; border-color: #c0392b; color: white; }
+.legend-item--bought.legend-item--active { background: var(--color-bought); border-color: var(--color-bought); color: white; }
+.legend-item--want.legend-item--active::before   { background: white; }
+.legend-item--bought.legend-item--active::before { background: white; }
 
 .map-viewport {
   flex: 1;
@@ -883,7 +893,7 @@
   box-shadow: 0 1px 4px rgba(192,57,43,0.5);
 }
 .map-marker--bought {
-  background: #2d6a4f;
+  background: var(--color-bought);
   border-color: white;
   width: 20px;
   height: 20px;

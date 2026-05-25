@@ -86,9 +86,9 @@ export function BookCard({ book, onToggleWant, onToggleBought, onShowOnMap }) {
         <button
           className={`btn-action btn-want ${book.wantToBuy ? 'active' : ''}`}
           onClick={() => onToggleWant(book.id)}
-          title={book.wantToBuy ? 'Remover da lista' : 'Quero comprar'}
+          title={book.wantToBuy ? 'Remover da lista' : 'Para comprar'}
         >
-          {book.wantToBuy ? '♥ Quero' : '♡ Quero'}
+          {book.wantToBuy ? '♥ Para' : '♡ Para'}
         </button>
         <button
           className={`btn-action btn-bought ${book.bought ? 'active' : ''}`}
