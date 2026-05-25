@@ -1,5 +1,5 @@
 """
-Generate app/public/feira_books.json from the full feira catalogue.
+Generate app/public/feira_books_of_the_day.json from the LDD fair catalogue CSV.
 Keyed by normalised ISBN13 for fast client-side lookup.
 Run from the project root: python generate_feira_books.py
 """
@@ -9,7 +9,7 @@ def normalize_isbn(raw):
     return re.sub(r'\D', '', raw or '')
 
 src = 'feira_lisboa_livros_do_dia_20260522.csv'
-dst = 'app/public/feira_books.json'
+dst = 'app/public/feira_books_of_the_day.json'
 
 books = {}
 with open(src, encoding='utf-8') as f:

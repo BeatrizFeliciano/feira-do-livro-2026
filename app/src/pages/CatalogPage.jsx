@@ -3,6 +3,7 @@ import { WORKER_URL } from '../constants'
 
 const LIMIT = 50
 const TOTAL_ALL_BOOKS = 45234  // empirically determined from the API (2026-05-24)
+const TOTAL_LDD_BOOKS = 5809   // from feira_books_of_the_day.json (2026-05-22 CSV)
 
 const normaliseIsbn = isbn => (isbn || '').replace(/\D/g, '')
 const fmtCount = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
@@ -68,7 +69,7 @@ function CatalogCard({ book, isLdd, inList, isManual, onAdd, onRemove }) {
   )
 }
 
-export function CatalogPage({ faireBooks, manualBooks, books, onAdd, onRemove }) {
+export function CatalogPage({ manualBooks, books, onAdd, onRemove }) {
   const [inputVal, setInputVal]     = useState('')
   const [lddOnly, setLddOnly]       = useState(false)
   const [offset, setOffset]         = useState(0)
@@ -111,8 +112,16 @@ export function CatalogPage({ faireBooks, manualBooks, books, onAdd, onRemove })
       .then(data => {
         if (cancelled) return
         const arr = Array.isArray(data) ? data : []
-        // offset 0 → fresh list; offset > 0 → append to existing
-        setResults(prev => offset === 0 ? arr : [...prev, ...arr])
+        // Deduplicate by ISBN (the API occasionally returns the same book twice)
+        setResults(prev => {
+          const combined = offset === 0 ? arr : [...prev, ...arr]
+          const seen = new Set()
+          return combined.filter(b => {
+            const key = normaliseIsbn(b.isbn) || b.titulo
+            if (seen.has(key)) return false
+            seen.add(key); return true
+          })
+        })
         setHasMore(arr.length === LIMIT)
         setFetching(false)
         fetchingRef.current = false
@@ -170,7 +179,7 @@ export function CatalogPage({ faireBooks, manualBooks, books, onAdd, onRemove })
           className={`shelf-tab ${lddOnly ? 'active' : ''}`}
           onClick={() => setLddOnly(true)}
         >
-          Livros do Dia <span className="shelf-tab__count">{faireBooks ? fmtCount(Object.keys(faireBooks).length) : '…'}</span>
+          Livros do Dia <span className="shelf-tab__count">{fmtCount(TOTAL_LDD_BOOKS)}</span>
         </button>
       </div>
 
@@ -185,7 +194,7 @@ export function CatalogPage({ faireBooks, manualBooks, books, onAdd, onRemove })
           <div className="book-list">
             {results.map(book => {
               const isbn     = normaliseIsbn(book.isbn)
-              const isLdd    = Boolean(faireBooks?.[isbn])
+              const isLdd    = Boolean(book.pvp_livro_do_dia)
               const isManual = manualIds.has(isbn)
               const inList   = matchedIds.has(isbn) || isManual
               return (

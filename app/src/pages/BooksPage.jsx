@@ -25,11 +25,12 @@ function matches(book, query) {
   )
 }
 
-export function BooksPage({ books, onToggleWant, onToggleBought, onShowOnMap, onRemove }) {
+export function BooksPage({ books, loading, loadingMessage, error, onToggleWant, onToggleBought, onShowOnMap, onRemove }) {
   const [shelf, setShelf] = useState('all')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
 
+  // All hooks must be called unconditionally before any early return
   const filtered = useMemo(() =>
     books
       .filter(b => {
@@ -62,8 +63,34 @@ export function BooksPage({ books, onToggleWant, onToggleBought, onShowOnMap, on
     sum + (parseFloat(b.feira_pvp) - parseFloat(b.livroDodia ? b.feira_pvp_livro_do_dia : b.feira_pvp_feira))
   , 0)
 
+  // Full-screen loading only when there's nothing to show yet
+  if (loading && books.length === 0) return (
+    <div className="loading">
+      <div className="loading-spinner" />
+      <p className="loading-detail">{loadingMessage || 'A carregar os teus livros…'}</p>
+    </div>
+  )
+
+  // Full-screen error only when there are no books to show either
+  if (error && books.length === 0) return (
+    <div className="loading">
+      <span className="loading-error">{error}</span>
+    </div>
+  )
+
   return (
     <div className="page">
+      {loading && (
+        <div className="loading-banner">
+          <div className="loading-spinner loading-spinner--sm" />
+          <span>{loadingMessage || 'A carregar os teus livros…'}</span>
+        </div>
+      )}
+      {error && !loading && (
+        <div className="loading-banner loading-banner--error">
+          <span>{error}</span>
+        </div>
+      )}
       {wantedBooks.length > 0 && (
         <div className="summary-bar">
           <span><strong>{wantedBooks.length}</strong> livro{wantedBooks.length !== 1 ? 's' : ''} para comprar</span>

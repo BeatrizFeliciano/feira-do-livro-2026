@@ -8,9 +8,8 @@ const FUZZY_THRESHOLD = 72   // same default as the Python script
 
 const LS_STATE_KEY  = 'feira_book_state'
 const LS_USER_KEY   = 'feira_goodreads_id'
-const LS_CACHE_KEY  = 'feira_books_cache'
+const LS_CACHE_KEY  = 'feira_books_cache_v2'
 const LS_MANUAL_KEY  = 'feira_manual_books'   // { [isbn]: fullBookObj }
-const LS_HIDDEN_KEY  = 'feira_hidden_books'   // [isbn, ...]
 
 // ── Exact port of Python's normalise() ───────────────────
 // Matches: unicodedata.normalize('NFD') + strip Mn + lower + non-alnum→space + collapse ws
@@ -183,19 +182,32 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
   // Exact port of match_by_fuzzy().
   // Pre-filter via title-word index to avoid O(n×m) full scan;
   // the index only misses pairs with zero shared words (handled by step 3).
+  // MAX_WORD_FREQ: skip words that appear in too many books — they are stop-words
+  // that don't narrow the candidate set and dominate runtime with 46k books.
+  const MAX_WORD_FREQ = 150
   onProgress('A cruzar os teus livros com a feira — passo 2 de 3: título e autor…')
   await yieldToUI()
   const afterStep2 = []
 
-  for (const gr of afterStep1) {
+  for (let gi = 0; gi < afterStep1.length; gi++) {
+    // Yield to UI every 20 books so the progress message stays live
+    if (gi > 0 && gi % 20 === 0) {
+      onProgress(`A cruzar os teus livros com a feira — passo 2 de 3: título e autor… (${gi}/${afterStep1.length})`)
+      await yieldToUI()
+    }
+    const gr = afterStep1[gi]
     // Candidates: faire books sharing ≥1 title word (len≥3) OR author word (len≥2)
+    // Skip words that appear in more than MAX_WORD_FREQ books — they are too common
+    // to be discriminating (e.g. "de", "the", "dos") and explode the candidate set.
     const candidateIsbns = new Set()
     const grWords = [
       ...normalise(gr.title  || '').split(' ').filter(w => w.length >= 3),
       ...normalise(gr.author || '').split(' ').filter(w => w.length >= 2),
     ]
     for (const word of grWords) {
-      for (const isbn of (titleAuthorWordIndex.get(word) || [])) {
+      const hits = titleAuthorWordIndex.get(word) || []
+      if (hits.length > MAX_WORD_FREQ) continue   // stop-word: skip
+      for (const isbn of hits) {
         if (!seenFaire.has(isbn)) candidateIsbns.add(isbn)
       }
     }
@@ -277,11 +289,6 @@ function loadManualBooks() {
 }
 function saveManualBooks(obj) { localStorage.setItem(LS_MANUAL_KEY, JSON.stringify(obj)) }
 
-function loadHiddenBooks() {
-  try { return new Set(JSON.parse(localStorage.getItem(LS_HIDDEN_KEY) || '[]')) } catch { return new Set() }
-}
-function saveHiddenBooks(set) { localStorage.setItem(LS_HIDDEN_KEY, JSON.stringify([...set])) }
-
 function extractUserId(input) {
   const trimmed = input.trim()
   const match = trimmed.match(/\/user\/show\/(\d+)/)
@@ -293,22 +300,33 @@ function extractUserId(input) {
 // ── Hook ─────────────────────────────────────────────────
 
 export function useBooks() {
-  const [faireBooks, setFaireBooks]         = useState(null)
+  const [allFeireBooks, setAllFeireBooks]   = useState(null)
   const [rawBooks, setRawBooks]             = useState(null)
   const [bookState, setBookState]           = useState(loadBookState)
   const [manualBooks, setManualBooks]       = useState(loadManualBooks)
-  const [hiddenBooks, setHiddenBooks]       = useState(loadHiddenBooks)
   const [userId, setUserId]                 = useState(() => localStorage.getItem(LS_USER_KEY))
   const [fetching, setFetching]             = useState(false)
   const [loadingMessage, setLoadingMessage] = useState('')
   const [error, setError]                   = useState(null)
 
+  // Lazy-load all_feira_books.json — only needed when a GR user is set
   useEffect(() => {
-    fetch(import.meta.env.BASE_URL + 'feira_books.json')
-      .then(r => r.json())
-      .then(setFaireBooks)
-      .catch(() => setError('Não foi possível carregar o catálogo da feira.'))
-  }, [])
+    if (!userId) return
+    setLoadingMessage('A carregar catálogo da feira...')
+    fetch(import.meta.env.BASE_URL + 'all_feira_books.json')
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
+      .then(setAllFeireBooks)
+      .catch(err => {
+        // File not yet generated or temporarily unavailable.
+        // Don't block the whole app — fall back to no GR matches so manual
+        // books and the Catálogo tab keep working.
+        console.warn('Could not load all_feira_books.json:', err.message)
+        setRawBooks([])   // clears the loading state; manualBooksArr still works
+      })
+  }, [userId])
 
   useEffect(() => {
     if (!userId) return
@@ -319,11 +337,11 @@ export function useBooks() {
   }, [userId])
 
   useEffect(() => {
-    if (!faireBooks || !userId || rawBooks !== null) return
+    if (!allFeireBooks || !userId || rawBooks !== null) return
     const controller = new AbortController()
     setFetching(true)
     setError(null)
-    fetchAndMatch(userId, faireBooks, setLoadingMessage, controller.signal)
+    fetchAndMatch(userId, allFeireBooks, setLoadingMessage, controller.signal)
       .then(matched => {
         localStorage.setItem(LS_CACHE_KEY, JSON.stringify(matched))
         setRawBooks(matched)
@@ -335,26 +353,12 @@ export function useBooks() {
         setFetching(false)
       })
     return () => controller.abort()
-  }, [faireBooks, userId, rawBooks])
-
-  // Migrate legacy feira_manual_isbns (ISBN array) → feira_manual_books (full objects)
-  useEffect(() => {
-    if (!faireBooks) return
-    const oldIsbns = JSON.parse(localStorage.getItem('feira_manual_isbns') || 'null')
-    if (oldIsbns?.length && Object.keys(manualBooks).length === 0) {
-      const migrated = {}
-      oldIsbns.forEach(isbn => { if (faireBooks[isbn]) migrated[isbn] = faireBooks[isbn] })
-      saveManualBooks(migrated)
-      localStorage.removeItem('feira_manual_isbns')
-      setManualBooks(migrated)
-    }
-  }, [faireBooks])
+  }, [allFeireBooks, userId, rawBooks])
 
   // Manually added books — stored as full objects, no faireBooks lookup needed.
   // Excluded if the ISBN already appears in rawBooks (Goodreads-matched).
   const matchedIds = new Set((rawBooks || []).map(b => b.id))
   const manualBooksArr = Object.entries(manualBooks)
-    .filter(([isbn]) => !hiddenBooks.has(isbn))
     .filter(([isbn]) => !matchedIds.has(isbn))
     .map(([isbn, fb]) => ({
       id:                     isbn,
@@ -375,7 +379,7 @@ export function useBooks() {
       manuallyAdded:          true,
     }))
 
-  const books = [...(rawBooks || []).filter(b => !hiddenBooks.has(b.id)), ...manualBooksArr].map(b => ({
+  const books = [...(rawBooks || []), ...manualBooksArr].map(b => ({
     ...b,
     // livroDodia may be absent in caches written before the field was introduced.
     // All rawBooks come from faireBooks (all LDD); manuallyAdded books default to false.
@@ -385,15 +389,20 @@ export function useBooks() {
   }))
 
   function removeBook(id) {
-    // Remove from manual list (if it was manually added)
+    // Remove from manual list (if manually added)
     setManualBooks(prev => {
+      if (!Object.prototype.hasOwnProperty.call(prev, id)) return prev
       const { [id]: _, ...next } = prev
-      saveManualBooks(next); return next
+      saveManualBooks(next)
+      return next
     })
-    // Hide from Goodreads-matched list too
-    setHiddenBooks(prev => {
-      const next = new Set([...prev, id])
-      saveHiddenBooks(next); return next
+    // Remove from GR-matched list (if present) and update the cache
+    setRawBooks(prev => {
+      if (!prev) return prev
+      const next = prev.filter(b => b.id !== id)
+      if (next.length === prev.length) return prev  // wasn't there, no change needed
+      localStorage.setItem(LS_CACHE_KEY, JSON.stringify(next))
+      return next
     })
   }
 
@@ -425,7 +434,9 @@ export function useBooks() {
   }
 
   function clearUser() {
-    localStorage.removeItem(LS_USER_KEY); localStorage.removeItem(LS_CACHE_KEY)
+    localStorage.removeItem(LS_USER_KEY)
+    localStorage.removeItem(LS_CACHE_KEY)
+    localStorage.removeItem('feira_hidden_books')   // clean up legacy key
     setUserId(null); setRawBooks(null); setError(null)
   }
 
@@ -449,7 +460,6 @@ export function useBooks() {
 
   return {
     books,
-    faireBooks,
     manualBooks,
     loading:        fetching || (!!userId && rawBooks === null && !error),
     loadingMessage,

@@ -96,7 +96,7 @@ export default function App() {
   const [tab, setTab] = useState(getTabFromHash)
   const [openStand, setOpenStand] = useState(null)
   const {
-    books, faireBooks, manualBooks, loading, loadingMessage, needsOnboarding, error,
+    books, manualBooks, loading, loadingMessage, needsOnboarding, error,
     setUser, clearUser, refresh, toggleWant, toggleBought, addManual, removeManual, removeBook,
   } = useBooks()
 
@@ -170,24 +170,21 @@ export default function App() {
             onRefresh={handleRefresh}
             error={error}
           />
-        ) : loading ? (
-          <div className="loading">
-            <div className="loading-spinner" />
-            <p className="loading-detail">{loadingMessage || 'A carregar…'}</p>
-          </div>
-        ) : error ? (
-          <div className="loading">
-            <span className="loading-error">{error}</span>
-            <button className="about-btn" style={{ marginTop: 16 }} onClick={() => navigate('about')}>
-              Voltar
-            </button>
-          </div>
         ) : tab === 'books' ? (
-          <BooksPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} onShowOnMap={handleShowOnMap} onRemove={removeBook} />
+          <BooksPage
+            books={books}
+            loading={loading}
+            loadingMessage={loadingMessage}
+            error={error}
+            onToggleWant={toggleWant}
+            onToggleBought={toggleBought}
+            onShowOnMap={handleShowOnMap}
+            onRemove={removeBook}
+          />
         ) : tab === 'days' ? (
           <DaysPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} onShowOnMap={handleShowOnMap} onRemove={removeBook} />
         ) : tab === 'catalog' ? (
-          <CatalogPage faireBooks={faireBooks} manualBooks={manualBooks} books={books} onAdd={addManual} onRemove={removeManual} />
+          <CatalogPage manualBooks={manualBooks} books={books} onAdd={addManual} onRemove={removeManual} />
         ) : (
           <MapPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} onRemove={removeBook} openStand={openStand} onStandOpened={() => setOpenStand(null)} />
         )}

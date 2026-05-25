@@ -27,7 +27,8 @@ WORKER_URL = 'https://goodreads-proxy.beatrizfeliciano1999.workers.dev'
 | `feira_goodreads_id` | Goodreads numeric user ID |
 | `feira_books_cache` | JSON array of matched book objects (avoids re-fetching) |
 | `feira_book_state` | `{ [isbn]: { wantToBuy, bought } }` |
-| `feira_manual_isbns` | JSON array of ISBNs manually added from the catalog |
+| `feira_manual_books` | `{ [isbn]: fullBookObj }` — see plan 04 for migration from old `feira_manual_isbns` |
+| `feira_hidden_books` | `[isbn, …]` — books removed via the trash button (see plan 04) |
 
 ### Data flow
 
@@ -67,9 +68,7 @@ s.toLowerCase().normalize('NFD').replace(/\p{Mn}/gu, '').replace(/[^a-z0-9 ]/g, 
 
 ### Manual books
 
-Books added from the Catalog tab are stored as a `Set` of ISBNs in `manualIsbns` state (persisted to `feira_manual_isbns`). They are synthesised into full book objects by looking up `faireBooks[isbn]`, then merged into `books` after `rawBooks`. Manual books default to `wantToBuy: true`.
-
-`addManual(isbn)` / `removeManual(isbn)` update both `manualIsbns` and `bookState`.
+> **Superseded by plan 04.** The original implementation stored only ISBNs (`feira_manual_isbns`) and looked up book data from `faireBooks` at render time — which broke for non-LDD books. See plan 04 for the full rewrite that stores complete book objects in `feira_manual_books`.
 
 ---
 
@@ -237,27 +236,15 @@ export function ShelfBadge({ shelf }) {
 
 ## Catalog Tab (`src/pages/CatalogPage.jsx`)
 
-### Purpose
-Lets any user (with or without a Goodreads account) browse all ~5800 feira books and add them to their list. Added as the first tab ("Catálogo da Feira").
+> **Superseded by plan 04.** This original version showed only the ~5,809 livros do dia from the static `faireBooks` JSON with client-side filtering. Plan 04 replaced it entirely with a live-API version that covers all ~45,234 fair books via the Cloudflare Worker proxy and IntersectionObserver infinite scroll.
 
-### Book states in the catalog
-
-| State | Display | Condition |
-|---|---|---|
-| Goodreads match | `✓ Goodreads` badge (non-interactive) | `inListIds.has(isbn) && !manualIds.has(isbn)` |
-| Manually added | `✓ Na lista` button (tap to remove) | `inListIds.has(isbn) && manualIds.has(isbn)` |
-| Not in list | `+ Adicionar` button | neither |
-
-### Search
-Filters by title, author, or publisher (`participante`). No minimum character requirement. The entire sorted list is shown when the query is empty.
-
-### Sorting
-All books are sorted alphabetically by title (Portuguese locale, case-insensitive) via a single `useMemo` on `faireBooks`.
-
-### Price display
-Three-tier: ~~PVP original~~ → Feira → **Livro do Dia** (matches the BookCard display on the Books page).
+The book state logic (Goodreads badge / Na lista / Adicionar) and the `addManual` / `removeManual` integration described here carry over to the plan 04 version unchanged.
 
 ---
+
+## Pagination (`src/pages/BooksPage.jsx`)
+
+> Note: Catalog pagination was replaced by infinite scroll in plan 04. The section below covers only `BooksPage`.
 
 ## Pagination (`src/pages/CatalogPage.jsx`, `src/pages/BooksPage.jsx`)
 

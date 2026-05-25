@@ -205,6 +205,30 @@
 .loading-detail { font-size: 0.9rem; color: var(--color-text-muted); max-width: 320px; line-height: 1.5; }
 .loading-error { color: var(--color-want); }
 
+/* Inline loading/error banners — shown at top of BooksPage without hiding the list */
+.loading-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--color-bg-card);
+  border: 1.5px solid var(--color-border);
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+}
+.loading-banner--error {
+  border-color: var(--color-want);
+  color: var(--color-want);
+}
+.loading-spinner--sm {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+  flex-shrink: 0;
+}
+
 /* ── Search bar ─────────────────────────────────────── */
 .search-bar {
   width: 100%;
