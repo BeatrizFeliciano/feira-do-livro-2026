@@ -1,13 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useBooks } from './hooks/useBooks'
 import { BooksPage } from './pages/BooksPage'
-import { DaysPage } from './pages/DaysPage'
 import { MapPage } from './pages/MapPage'
 import { CatalogPage } from './pages/CatalogPage'
 import logoUrl from './assets/logo.svg'
 import './App.css'
 
-const VALID_TABS = new Set(['books', 'days', 'map', 'catalog'])
+const VALID_TABS = new Set(['books', 'map', 'catalog'])
 
 function getTabFromHash() {
   const hash = window.location.hash.replace('#', '')
@@ -26,11 +25,10 @@ function setHash(tab) {
 const TABS = [
   { key: 'catalog', label: 'Catálogo da Feira' },
   { key: 'books',   label: 'Os Meus Livros' },
-  { key: 'days',    label: 'Por Dia' },
   { key: 'map',     label: 'Mapa' },
 ]
 
-function AboutPage({ needsOnboarding, onStart, onSetUser, onClearUser, onRefresh, error }) {
+function AboutPage({ needsOnboarding, loading, loadingMessage, onStart, onSetUser, onClearUser, onRefresh, error }) {
   const [input, setInput] = useState('')
 
   function handleSubmit(e) {
@@ -43,38 +41,49 @@ function AboutPage({ needsOnboarding, onStart, onSetUser, onClearUser, onRefresh
     <div className="about-page">
       <div className="about-card">
         <img src={logoUrl} alt="My Books" className="about-logo" />
-        <p className="about-subtitle">Os meus livros do Goodreads<br />na Feira do Livro de Lisboa 2026</p>
+        <p className="about-subtitle">A tua guia para a<br />Feira do Livro de Lisboa 2026</p>
         <ul className="about-features">
-          <li>Cruza a tua lista do Goodreads com os <strong>livros do dia</strong> com desconto</li>
-          <li>Marca os livros que <strong>queres comprar</strong> e os que já <strong>compraste</strong></li>
+          <li>Navega o catálogo completo da feira e marca os livros que <strong>queres comprar</strong></li>
+          <li>Liga o teu Goodreads para cruzar automaticamente a tua lista com os livros disponíveis</li>
           <li>Vê em que dias cada livro tem desconto e quanto poupas</li>
           <li>Encontra o stand no <strong>mapa da feira</strong> para não perderes tempo</li>
         </ul>
-        <p className="about-note">Só aparecem livros incluídos nos livros do dia — para maximizares as poupanças na feira.</p>
 
         {needsOnboarding ? (
-          <form className="onboarding-form" onSubmit={handleSubmit}>
-            <p className="onboarding-instructions">
-              Para começar, vai ao teu perfil do Goodreads e copia o URL do browser.
-              <br />
-              <span className="onboarding-example">ex: goodreads.com/user/show/12345678-nome</span>
-            </p>
-            <input
-              className="onboarding-input"
-              type="text"
-              placeholder="https://www.goodreads.com/user/show/..."
-              value={input}
-              onChange={e => setInput(e.target.value)}
-            />
-            {error && <p className="onboarding-error">{error}</p>}
-            <button className="about-btn" type="submit" disabled={!input.trim()}>
-              Carregar os meus livros →
+          <>
+            <form className="onboarding-form" onSubmit={handleSubmit}>
+              <p className="onboarding-instructions">
+                Liga o Goodreads para cruzar a tua lista com os livros da feira.
+                <br />
+                Copia o URL do teu perfil do Goodreads:
+                <br />
+                <span className="onboarding-example">ex: goodreads.com/user/show/12345678-nome</span>
+              </p>
+              <input
+                className="onboarding-input"
+                type="text"
+                placeholder="https://www.goodreads.com/user/show/..."
+                value={input}
+                onChange={e => setInput(e.target.value)}
+              />
+              {error && <p className="onboarding-error">{error}</p>}
+              <button className="about-btn" type="submit" disabled={!input.trim()}>
+                Ligar Goodreads →
+              </button>
+            </form>
+            <button className="about-skip-btn" onClick={onStart}>
+              Continuar sem Goodreads →
             </button>
-          </form>
+          </>
+        ) : loading ? (
+          <div className="onboarding-loading">
+            <div className="loading-spinner" />
+            <p className="onboarding-loading__msg">{loadingMessage || 'A carregar os teus livros do Goodreads…'}</p>
+          </div>
         ) : (
           <>
             <button className="about-btn" onClick={onStart}>
-              Ver os meus livros →
+              Ver o catálogo →
             </button>
             <div className="about-account">
               <button className="about-account-btn" onClick={onRefresh}>
@@ -95,9 +104,10 @@ function AboutPage({ needsOnboarding, onStart, onSetUser, onClearUser, onRefresh
 export default function App() {
   const [tab, setTab] = useState(getTabFromHash)
   const [openStand, setOpenStand] = useState(null)
+  const [notification, setNotification] = useState(null) // { type: 'error'|'warning', message }
   const {
-    books, manualBooks, loading, loadingMessage, needsOnboarding, error,
-    setUser, clearUser, refresh, toggleWant, toggleBought, addManual, removeManual, removeBook,
+    books, manualBooks, grBooks, loading, loadingMessage, needsOnboarding, error,
+    setUser, clearUser, refresh, toggleWant, toggleBought, addManual, removeManual,
   } = useBooks()
 
   // Sync tab state when the user navigates with the browser back/forward buttons
@@ -109,20 +119,38 @@ export default function App() {
 
   function navigate(newTab) {
     setHash(newTab)
-    // pushState (used for 'about') doesn't fire hashchange, so set state directly
     if (newTab === 'about') setTab('about')
-    // for other tabs, hashchange fires and updates state via the listener
   }
 
+  // When GR loading finishes while on the about page → always navigate to catalog.
+  // Show a toast if something went wrong or no books matched.
+  const prevLoadingRef = useRef(loading)
+  useEffect(() => {
+    const wasLoading = prevLoadingRef.current
+    prevLoadingRef.current = loading
+    if (!wasLoading || loading || needsOnboarding || tab !== 'about') return
+    if (error) {
+      setNotification({ type: 'error', message: 'Não foi possível carregar os livros do Goodreads. Verifica se o teu perfil e as tuas listas são públicos.' })
+    } else if (grBooks.length === 0) {
+      setNotification({ type: 'warning', message: 'Nenhum livro da tua lista foi encontrado na feira. Verifica se as tuas listas no Goodreads são públicas.' })
+    }
+    navigate('catalog')
+  }, [loading, needsOnboarding, tab, error, grBooks.length])
+
+  // Auto-dismiss errors only; warnings stay until manually closed
+  useEffect(() => {
+    if (!notification || notification.type !== 'error') return
+    const t = setTimeout(() => setNotification(null), 6000)
+    return () => clearTimeout(t)
+  }, [notification])
+
   function handleSetUser(input) {
-    const ok = setUser(input)
-    if (ok) navigate('books')
-    return ok
+    return setUser(input)  // stay on about — loading effect above handles navigation
   }
 
   function handleRefresh() {
     refresh()
-    navigate('books')
+    navigate('about')  // go back to about to show loading state
   }
 
   function handleClearUser() {
@@ -160,11 +188,20 @@ export default function App() {
         </div>
       </header>
 
+      {notification && (
+        <div className={`app-notification app-notification--${notification.type}`}>
+          <span>{notification.message}</span>
+          <button className="app-notification__close" onClick={() => setNotification(null)}>✕</button>
+        </div>
+      )}
+
       <main className={tab === 'map' ? 'app-main app-main--fullwidth' : 'app-main'}>
         {tab === 'about' ? (
           <AboutPage
             needsOnboarding={needsOnboarding}
-            onStart={() => navigate('books')}
+            loading={loading}
+            loadingMessage={loadingMessage}
+            onStart={() => navigate('catalog')}
             onSetUser={handleSetUser}
             onClearUser={handleClearUser}
             onRefresh={handleRefresh}
@@ -179,14 +216,12 @@ export default function App() {
             onToggleWant={toggleWant}
             onToggleBought={toggleBought}
             onShowOnMap={handleShowOnMap}
-            onRemove={removeBook}
+
           />
-        ) : tab === 'days' ? (
-          <DaysPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} onShowOnMap={handleShowOnMap} onRemove={removeBook} />
         ) : tab === 'catalog' ? (
-          <CatalogPage manualBooks={manualBooks} books={books} onAdd={addManual} onRemove={removeManual} />
+          <CatalogPage manualBooks={manualBooks} books={books} grBooks={grBooks} needsOnboarding={needsOnboarding} onAdd={addManual} onRemove={removeManual} onConnectGoodreads={() => navigate('about')} />
         ) : (
-          <MapPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} onRemove={removeBook} openStand={openStand} onStandOpened={() => setOpenStand(null)} />
+          <MapPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} openStand={openStand} onStandOpened={() => setOpenStand(null)} />
         )}
       </main>
     </div>

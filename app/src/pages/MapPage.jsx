@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { TrashIcon } from '../components/TrashIcon'
-import { ConfirmDialog } from '../components/ConfirmDialog'
 
 const SVG_W = 1600
 const SVG_H = 2400
@@ -13,11 +11,10 @@ function formatDate(raw) {
   return `${parseInt(d)} ${months[parseInt(m) - 1]}`
 }
 
-function StandPopup({ stand, books, publishers, activeDay, onToggleWant, onToggleBought, onRemove, onClose }) {
-  const [confirmingId, setConfirmingId] = useState(null)
+function StandPopup({ stand, books, publishers, activeDay, onToggleWant, onToggleBought, onClose }) {
   const standBooks = books.filter(b => {
     if (b.feira_stand !== stand) return false
-    if (activeDay) return b.discountDates.includes(activeDay)
+    if (activeDay) return b.discountDates.includes(activeDay) || b.discountDates.length === 0
     return true
   })
   const allStandBooks = books.filter(b => b.feira_stand === stand)
@@ -49,24 +46,12 @@ function StandPopup({ stand, books, publishers, activeDay, onToggleWant, onToggl
                   className={`btn-action btn-sm btn-want ${book.wantToBuy ? 'active' : ''}`}
                   onClick={() => onToggleWant(book.id)}
                   title={book.wantToBuy ? 'Remover da lista' : 'Quero comprar'}
-                >♡</button>
+                >{book.wantToBuy ? '♥' : '♡'}</button>
                 <button
                   className={`btn-action btn-sm btn-bought ${book.bought ? 'active' : ''}`}
                   onClick={() => onToggleBought(book.id)}
                   title={book.bought ? 'Marcar como não comprado' : 'Marcar como comprado'}
                 >✓</button>
-                <button
-                  className="btn-action btn-sm btn-remove"
-                  onClick={() => setConfirmingId(book.id)}
-                  title="Remover da lista"
-                ><TrashIcon /></button>
-                {confirmingId === book.id && (
-                  <ConfirmDialog
-                    message={`Remover "${book.feira_titulo}" da tua lista?`}
-                    onConfirm={() => { onRemove(book.id); setConfirmingId(null) }}
-                    onCancel={() => setConfirmingId(null)}
-                  />
-                )}
               </div>
             </li>
           ))}
@@ -76,7 +61,7 @@ function StandPopup({ stand, books, publishers, activeDay, onToggleWant, onToggl
   )
 }
 
-export function MapPage({ books, onToggleWant, onToggleBought, onRemove, openStand, onStandOpened }) {
+export function MapPage({ books, onToggleWant, onToggleBought, openStand, onStandOpened }) {
   const [coords, setCoords] = useState(null)
   const [publishers, setPublishers] = useState({})
   const [query, setQuery] = useState('')
@@ -107,7 +92,7 @@ export function MapPage({ books, onToggleWant, onToggleBought, onRemove, openSta
     const map = {}
     books.forEach(b => {
       if (!b.feira_stand) return
-      if (activeDay && !b.discountDates.includes(activeDay)) return
+      if (activeDay && !b.discountDates.includes(activeDay) && b.discountDates.length > 0) return
       if (!map[b.feira_stand]) map[b.feira_stand] = []
       map[b.feira_stand].push(b)
     })
@@ -257,7 +242,7 @@ export function MapPage({ books, onToggleWant, onToggleBought, onRemove, openSta
         activeDay={activeDay}
         onToggleWant={onToggleWant}
         onToggleBought={onToggleBought}
-        onRemove={onRemove}
+
         onClose={() => setSelectedStand(null)}
       />
     </div>,
@@ -268,6 +253,13 @@ export function MapPage({ books, onToggleWant, onToggleBought, onRemove, openSta
     <div className="map-page">
       <div className="map-controls">
         <div className="map-controls__row">
+          <input
+            className="search-bar"
+            type="search"
+            placeholder="Pesquisar por stand, editora, ou livro..."
+            value={query}
+            onChange={e => { setQuery(e.target.value); setSelectedStand(null) }}
+          />
           <select
             className="map-day-select"
             value={activeDay || ''}
@@ -278,13 +270,6 @@ export function MapPage({ books, onToggleWant, onToggleBought, onRemove, openSta
               <option key={day} value={day}>{formatDate(day)}</option>
             ))}
           </select>
-          <input
-            className="search-bar"
-            type="search"
-            placeholder="Pesquisar por stand, editora, ou livro..."
-            value={query}
-            onChange={e => { setQuery(e.target.value); setSelectedStand(null) }}
-          />
         </div>
         <div className="map-legend">
           <span className="legend-item legend-item--want">Quero comprar</span>
@@ -314,15 +299,18 @@ export function MapPage({ books, onToggleWant, onToggleBought, onRemove, openSta
                 const isHighlighted = highlightSet.has(code)
                 const isSelected = selectedStand === code
                 const hasBooks = standsWithBooks.includes(code)
+                const searchActive = highlightSet.size > 0
+                const effectiveCls = searchActive && !isHighlighted && !isSelected ? 'none' : cls
+                const effectiveHasBooks = searchActive && !isHighlighted && !isSelected ? false : hasBooks
                 return (
                   <button
                     key={code}
                     className={[
                       'map-marker',
-                      cls !== 'none' ? `map-marker--${cls}` : '',
+                      effectiveCls !== 'none' ? `map-marker--${effectiveCls}` : '',
                       isHighlighted ? 'map-marker--highlight' : '',
                       isSelected ? 'map-marker--selected' : '',
-                      !hasBooks && !isHighlighted ? 'map-marker--empty' : '',
+                      !effectiveHasBooks && !isHighlighted ? 'map-marker--empty' : '',
                     ].filter(Boolean).join(' ')}
                     style={{
                       left: `${(pos.x / SVG_W) * 100}%`,

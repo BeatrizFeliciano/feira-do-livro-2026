@@ -6,10 +6,10 @@ import { WORKER_URL } from '../constants'
 const SHELVES       = ['to-read', 'read', 'currently-reading', 'did-not-finish']
 const FUZZY_THRESHOLD = 72   // same default as the Python script
 
-const LS_STATE_KEY  = 'feira_book_state'
-const LS_USER_KEY   = 'feira_goodreads_id'
-const LS_CACHE_KEY  = 'feira_books_cache_v2'
-const LS_MANUAL_KEY  = 'feira_manual_books'   // { [isbn]: fullBookObj }
+const LS_STATE_KEY   = 'feira_book_state'
+const LS_USER_KEY    = 'feira_goodreads_id'
+const LS_CACHE_KEY   = 'feira_books_cache_v2'
+const LS_MANUAL_KEY  = 'feira_manual_books'    // { [isbn]: fullBookObj }
 
 // ── Exact port of Python's normalise() ───────────────────
 // Matches: unicodedata.normalize('NFD') + strip Mn + lower + non-alnum→space + collapse ws
@@ -355,16 +355,15 @@ export function useBooks() {
     return () => controller.abort()
   }, [allFeireBooks, userId, rawBooks])
 
-  // Manually added books — stored as full objects, no faireBooks lookup needed.
-  // Excluded if the ISBN already appears in rawBooks (Goodreads-matched).
-  const matchedIds = new Set((rawBooks || []).map(b => b.id))
+  // Os Meus Livros = only books the user explicitly added via "Adicionar".
+  // rawBooks (GR matches) are NOT shown automatically — they're available in the
+  // Catálogo GR shelf tabs so the user can selectively add what they want.
   const manualBooksArr = Object.entries(manualBooks)
-    .filter(([isbn]) => !matchedIds.has(isbn))
     .map(([isbn, fb]) => ({
       id:                     isbn,
       gr_title:               fb.titulo,
       gr_author:              fb.autor,
-      gr_shelf:               null,
+      gr_shelf:               fb.gr_shelf || null,   // set when added from a GR shelf
       gr_my_rating:           0,
       feira_titulo:           fb.titulo,
       feira_autor:            fb.autor,
@@ -379,30 +378,17 @@ export function useBooks() {
       manuallyAdded:          true,
     }))
 
-  const books = [...(rawBooks || []), ...manualBooksArr].map(b => ({
+  const books = manualBooksArr.map(b => ({
     ...b,
-    // livroDodia may be absent in caches written before the field was introduced.
-    // All rawBooks come from faireBooks (all LDD); manuallyAdded books default to false.
-    livroDodia: b.livroDodia ?? !b.manuallyAdded,
-    wantToBuy: bookState[b.id]?.wantToBuy ?? (b.manuallyAdded ? true : false),
+    wantToBuy: bookState[b.id]?.wantToBuy ?? true,
     bought:    bookState[b.id]?.bought    ?? false,
   }))
 
   function removeBook(id) {
-    // Remove from manual list (if manually added)
     setManualBooks(prev => {
       if (!Object.prototype.hasOwnProperty.call(prev, id)) return prev
       const { [id]: _, ...next } = prev
-      saveManualBooks(next)
-      return next
-    })
-    // Remove from GR-matched list (if present) and update the cache
-    setRawBooks(prev => {
-      if (!prev) return prev
-      const next = prev.filter(b => b.id !== id)
-      if (next.length === prev.length) return prev  // wasn't there, no change needed
-      localStorage.setItem(LS_CACHE_KEY, JSON.stringify(next))
-      return next
+      saveManualBooks(next); return next
     })
   }
 
@@ -417,12 +403,8 @@ export function useBooks() {
     })
   }
 
-  function removeManual(isbn) {
-    setManualBooks(prev => {
-      const { [isbn]: _, ...next } = prev
-      saveManualBooks(next); return next
-    })
-  }
+  // removeManual: same as removeBook — kept for backwards compatibility
+  const removeManual = removeBook
 
   function setUser(input) {
     const id = extractUserId(input)
@@ -436,18 +418,15 @@ export function useBooks() {
   function clearUser() {
     localStorage.removeItem(LS_USER_KEY)
     localStorage.removeItem(LS_CACHE_KEY)
-    localStorage.removeItem('feira_hidden_books')   // clean up legacy key
+    localStorage.removeItem('feira_hidden_books')    // clean up legacy key
+    localStorage.removeItem('feira_removed_books')   // clean up legacy key
     setUserId(null); setRawBooks(null); setError(null)
   }
 
   function refresh() { localStorage.removeItem(LS_CACHE_KEY); setRawBooks(null) }
 
   function toggleWant(id) {
-    setBookState(prev => {
-      const cur = prev[id] || {}
-      const next = cur.wantToBuy ? { wantToBuy: false, bought: false } : { ...cur, wantToBuy: true }
-      const updated = { ...prev, [id]: next }; saveBookState(updated); return updated
-    })
+    removeBook(id)
   }
 
   function toggleBought(id) {
@@ -461,6 +440,7 @@ export function useBooks() {
   return {
     books,
     manualBooks,
+    grBooks: rawBooks || [],   // GR-matched books for Catálogo shelf tabs
     loading:        fetching || (!!userId && rawBooks === null && !error),
     loadingMessage,
     needsOnboarding: !userId,

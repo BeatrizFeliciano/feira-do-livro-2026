@@ -74,9 +74,9 @@ function BookRow({ book, onToggleWant, onToggleBought, onRemove }) {
 }
 
 const FILTERS = [
-  { key: 'all', label: 'Todos' },
-  { key: 'want', label: 'Quero comprar' },
+  { key: 'all',       label: 'Todos' },
   { key: 'not-bought', label: 'Por comprar' },
+  { key: 'bought',    label: 'Comprado' },
 ]
 
 function matches(book, query) {
@@ -115,8 +115,8 @@ export function DaysPage({ books, onToggleWant, onToggleBought, onShowOnMap, onR
     return datesToShow.map(date => {
       let booksOnDay = visibleBooks.filter(b => b.discountDates.includes(date))
 
-      if (filter === 'want') booksOnDay = booksOnDay.filter(b => b.wantToBuy)
       if (filter === 'not-bought') booksOnDay = booksOnDay.filter(b => b.wantToBuy && !b.bought)
+      if (filter === 'bought')    booksOnDay = booksOnDay.filter(b => b.wantToBuy && b.bought)
 
       // group by stand
       const byStand = {}

@@ -1,7 +1,4 @@
-import { useState } from 'react'
 import { ShelfBadge } from './ShelfBadge'
-import { TrashIcon } from './TrashIcon'
-import { ConfirmDialog } from './ConfirmDialog'
 
 function Stars({ rating }) {
   const n = parseInt(rating, 10)
@@ -36,9 +33,7 @@ function PriceBlock({ pvp, pvpFeira, pvpDia }) {
   )
 }
 
-export function BookCard({ book, onToggleWant, onToggleBought, onShowOnMap, onRemove }) {
-  const [confirmingRemove, setConfirmingRemove] = useState(false)
-
+export function BookCard({ book, onToggleWant, onToggleBought, onShowOnMap }) {
   return (
     <div className={`book-card ${book.bought ? 'book-card--bought' : ''}`}>
       <img
@@ -56,6 +51,11 @@ export function BookCard({ book, onToggleWant, onToggleBought, onShowOnMap, onRe
           <span className="book-card__author">{book.feira_autor}</span>
         </div>
         <div className="book-card__meta">
+          {book.gr_shelf && (
+            <span className="catalog-badge catalog-badge--gr" title={`Goodreads — ${book.gr_shelf}`}>
+              Goodreads
+            </span>
+          )}
           <ShelfBadge shelf={book.gr_shelf} />
           <Stars rating={book.gr_my_rating} />
           <span className="book-card__stand">{book.feira_stand} · {book.feira_participante}</span>
@@ -97,22 +97,6 @@ export function BookCard({ book, onToggleWant, onToggleBought, onShowOnMap, onRe
         >
           {book.bought ? '✓ Comprado' : '○ Comprado'}
         </button>
-        {onRemove && (
-          <button
-            className="btn-action btn-remove"
-            onClick={() => setConfirmingRemove(true)}
-            title="Remover da lista"
-          >
-            <TrashIcon /> Remover
-          </button>
-        )}
-        {confirmingRemove && (
-          <ConfirmDialog
-            message={`Remover "${book.feira_titulo}" da tua lista?`}
-            onConfirm={() => onRemove(book.id)}
-            onCancel={() => setConfirmingRemove(false)}
-          />
-        )}
       </div>
     </div>
   )
