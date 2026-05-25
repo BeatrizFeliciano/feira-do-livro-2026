@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Summary Bar Mockups</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f4f6f9;
+    padding: 32px 24px;
+    color: #1a202c;
+  }
+  h1 { font-size: 1rem; font-weight: 600; color: #666; margin-bottom: 28px; letter-spacing: 0.05em; text-transform: uppercase; }
+  .option {
+    margin-bottom: 36px;
+  }
+  .label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888;
+    margin-bottom: 8px;
+  }
+
+  /* ── Shared accent colours ── */
+  :root {
+    --accent: #2a4ab5;
+    --accent-light: #eef1fb;
+    --green: #2d6a4f;
+    --green-light: #e8f4ee;
+    --border: #d0d7e8;
+  }
+
+  /* ══════════════════════════════════════════
+     OPTION A — Two mini-cards
+  ══════════════════════════════════════════ */
+  .opt-a {
+    display: flex;
+    gap: 10px;
+  }
+  .opt-a__card {
+    flex: 1;
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .opt-a__card--pending {
+    background: var(--accent-light);
+    border: 1px solid var(--border);
+  }
+  .opt-a__card--bought {
+    background: var(--green-light);
+    border: 1px solid #b7dfc9;
+  }
+  .opt-a__title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #888;
+  }
+  .opt-a__card--pending .opt-a__title { color: var(--accent); opacity: 0.7; }
+  .opt-a__card--bought .opt-a__title   { color: var(--green); opacity: 0.7; }
+  .opt-a__main {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .opt-a__card--bought .opt-a__main { color: var(--green); }
+  .opt-a__sub {
+    font-size: 0.8rem;
+    color: #555;
+  }
+
+  /* ══════════════════════════════════════════
+     OPTION B — Single bar, savings focus
+  ══════════════════════════════════════════ */
+  .opt-b {
+    background: var(--accent-light);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 11px 16px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    font-size: 0.9rem;
+    color: var(--accent);
+  }
+  .opt-b__sep {
+    color: #bbb;
+    font-weight: 300;
+  }
+  .opt-b__bought {
+    color: var(--green);
+    font-weight: 600;
+  }
+  .opt-b__total {
+    margin-left: auto;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  /* ══════════════════════════════════════════
+     OPTION C — Progress framing
+  ══════════════════════════════════════════ */
+  .opt-c {
+    background: var(--accent-light);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 0.88rem;
+    color: var(--accent);
+  }
+  .opt-c__top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .opt-c__progress-wrap {
+    flex: 1;
+    height: 6px;
+    background: rgba(42,74,181,0.15);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .opt-c__progress-bar {
+    height: 100%;
+    width: 37.5%; /* 3 of 8 */
+    background: var(--green);
+    border-radius: 99px;
+  }
+  .opt-c__count {
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .opt-c__bottom {
+    display: flex;
+    gap: 16px;
+    font-size: 0.82rem;
+  }
+  .opt-c__saved { color: var(--green); font-weight: 600; }
+  .opt-c__pending { color: var(--accent); opacity: 0.8; }
+
+  /* ══════════════════════════════════════════
+     OPTION D — Minimal two rows
+  ══════════════════════════════════════════ */
+  .opt-d {
+    background: var(--accent-light);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .opt-d__row1 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .opt-d__row1-sep { color: #bbb; font-weight: 300; }
+  .opt-d__row2 {
+    font-size: 0.78rem;
+    color: var(--green);
+    opacity: 0.85;
+  }
+</style>
+</head>
+<body>
+<h1>Summary Bar — Opções</h1>
+
+<!-- OPTION A -->
+<div class="option">
+  <div class="label">A — Dois cartões</div>
+  <div class="opt-a">
+    <div class="opt-a__card opt-a__card--pending">
+      <span class="opt-a__title">Por comprar</span>
+      <span class="opt-a__main">5 livros · €45.20</span>
+      <span class="opt-a__sub">Poupança estimada: €12.50</span>
+    </div>
+    <div class="opt-a__card opt-a__card--bought">
+      <span class="opt-a__title">Comprado</span>
+      <span class="opt-a__main">3 livros · €28.60</span>
+      <span class="opt-a__sub">Já poupaste: €8.30</span>
+    </div>
+  </div>
+</div>
+
+<!-- OPTION B -->
+<div class="option">
+  <div class="label">B — Barra única, foco na poupança</div>
+  <div class="opt-b">
+    <span><strong>5</strong> por comprar · <strong>€45.20</strong></span>
+    <span class="opt-b__sep">·</span>
+    <span class="opt-b__bought">✓ <strong>3</strong> comprados · poupaste <strong>€8.30</strong></span>
+    <span class="opt-b__total">Poupança total: €20.80</span>
+  </div>
+</div>
+
+<!-- OPTION C -->
+<div class="option">
+  <div class="label">C — Progresso</div>
+  <div class="opt-c">
+    <div class="opt-c__top">
+      <span class="opt-c__count">3 de 8 livros comprados</span>
+      <div class="opt-c__progress-wrap">
+        <div class="opt-c__progress-bar"></div>
+      </div>
+    </div>
+    <div class="opt-c__bottom">
+      <span class="opt-c__saved">✓ Já poupaste €8.30</span>
+      <span class="opt-c__pending">+ €12.50 por garantir · €45.20 em falta</span>
+    </div>
+  </div>
+</div>
+
+<!-- OPTION D -->
+<div class="option">
+  <div class="label">D — Minimal, duas linhas</div>
+  <div class="opt-d">
+    <div class="opt-d__row1">
+      <span>5 por comprar</span>
+      <span class="opt-d__row1-sep">·</span>
+      <span>€45.20</span>
+      <span class="opt-d__row1-sep">·</span>
+      <span>poupança €20.80</span>
+    </div>
+    <div class="opt-d__row2">✓ 3 já comprados — já poupaste €8.30</div>
+  </div>
+</div>
+
+</body>
+</html>
