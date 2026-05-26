@@ -120,7 +120,7 @@ export const tr = {
     nav_home_aria:      'Home',
 
     // About / Onboarding
-    about_subtitle:        'My books at the\nLisbon Book Fair 2026',
+    about_subtitle:        'My books at the\nFeira do Livro de Lisboa 2026',
     about_feature_1:       'Browse the <strong>complete catalogue</strong> and add books to your list',
     about_feature_2:       'See which are the <strong>books of the day</strong> and when they are available',
     about_feature_3:       'Connect <strong>Goodreads</strong> to automatically find your books at the fair',
