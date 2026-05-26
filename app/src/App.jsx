@@ -142,6 +142,11 @@ export default function App() {
     return () => clearTimeout(t)
   }, [notification])
 
+  // Dismiss any warning if books are successfully loaded
+  useEffect(() => {
+    if (grBooks.length > 0 && notification?.type === 'warning') setNotification(null)
+  }, [grBooks.length])
+
   function handleSetUser(input) {
     return setUser(input)  // stay on about — loading effect above handles navigation
   }
