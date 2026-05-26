@@ -1,17 +1,20 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { useLanguage } from '../LanguageContext'
+import { makeT } from '../i18n'
 
 const SVG_W = 1600
 const SVG_H = 2400
 
-function formatDate(raw) {
-  // raw is "YYYY-MM-DD"
-  const [, m, d] = raw.split('-')
-  const months = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
-  return `${parseInt(d)} ${months[parseInt(m) - 1]}`
+function formatDate(raw, locale) {
+  const d = new Date(raw + 'T00:00:00')
+  return d.toLocaleDateString(locale, { day: 'numeric', month: 'long' })
 }
 
-function StandPopup({ stand, books, publishers, activeDay, onToggleWant, onToggleBought, onClose }) {
+function StandPopup({ stand, books, publishers, activeDay, locale, onToggleWant, onToggleBought, onClose }) {
+  const { lang } = useLanguage()
+  const t = makeT(lang)
+
   const standBooks = books.filter(b => {
     if (b.feira_stand !== stand) return false
     if (activeDay) return b.discountDates.includes(activeDay) || b.discountDates.length === 0
@@ -29,8 +32,8 @@ function StandPopup({ stand, books, publishers, activeDay, onToggleWant, onToggl
       {standBooks.length === 0 ? (
         <div className="map-popup__empty">
           {activeDay
-            ? `Sem livros da tua lista com desconto a ${formatDate(activeDay)}.`
-            : 'Nenhum livro da tua lista aqui.'}
+            ? t('map_no_books_filtered', formatDate(activeDay, locale))
+            : t('map_no_books')}
         </div>
       ) : (
         <ul className="map-popup__list">
@@ -45,12 +48,12 @@ function StandPopup({ stand, books, publishers, activeDay, onToggleWant, onToggl
                 <button
                   className={`btn-action btn-sm btn-want ${book.wantToBuy ? 'active' : ''}`}
                   onClick={() => onToggleWant(book.id)}
-                  title={book.wantToBuy ? 'Remover da lista' : 'Para comprar'}
+                  title={book.wantToBuy ? t('action_remove_list') : t('map_want')}
                 >{book.wantToBuy ? '♥' : '♡'}</button>
                 <button
                   className={`btn-action btn-sm btn-bought ${book.bought ? 'active' : ''}`}
                   onClick={() => onToggleBought(book.id)}
-                  title={book.bought ? 'Marcar como não comprado' : 'Marcar como comprado'}
+                  title={book.bought ? t('action_unbought') : t('action_bought')}
                 >✓</button>
               </div>
             </li>
@@ -62,6 +65,10 @@ function StandPopup({ stand, books, publishers, activeDay, onToggleWant, onToggl
 }
 
 export function MapPage({ books, onToggleWant, onToggleBought, openStand, onStandOpened }) {
+  const { lang } = useLanguage()
+  const t = makeT(lang)
+  const locale = t('date_locale')
+
   const [coords, setCoords] = useState(null)
   const [publishers, setPublishers] = useState({})
   const [query, setQuery] = useState('')
@@ -147,44 +154,33 @@ export function MapPage({ books, onToggleWant, onToggleBought, openStand, onStan
   }, [query, coords, publishers, books])
 
   // Place the popup next to a given viewport anchor point.
-  // anchorX/anchorY come from the tapped marker element's bounding rect (most
-  // reliable) or, for programmatic opens, from the img rect + SVG maths.
   function placePopup(anchorX, anchorY) {
     const vw     = window.innerWidth
     const vh     = window.innerHeight
-    const PW     = Math.min(280, vw - 16)   // matches CSS min(280px, 100vw-16px)
-    const PH     = 320                        // CSS max-height — used for scoring only
+    const PW     = Math.min(280, vw - 16)
+    const PH     = 320
     const GAP    = 12
     const MARGIN = 8
 
-    // Scoring uses worst-case PH for all directions.
-    const visibleArea = (l, t) => {
+    const visibleArea = (l, tt) => {
       const visW = Math.max(0, Math.min(l + PW, vw - MARGIN) - Math.max(l, MARGIN))
-      const visH = Math.max(0, Math.min(t + PH, vh - MARGIN) - Math.max(t, MARGIN))
+      const visH = Math.max(0, Math.min(tt + PH, vh - MARGIN) - Math.max(tt, MARGIN))
       return visW * visH
     }
 
-    // Four candidates. For each:
-    //   l/t  = top-left corner used for scoring (worst-case PH for "above")
-    //   cssBottom = if set, use CSS `bottom` instead of `top` so the popup's
-    //               bottom edge snaps to the anchor regardless of actual height.
     const candidates = [
-      // Right of anchor — slide vertically
       { l: anchorX + GAP,       t: anchorY - PH / 2,    cssBottom: null,              freeY: true  },
-      // Left of anchor — slide vertically
       { l: anchorX - GAP - PW,  t: anchorY - PH / 2,    cssBottom: null,              freeY: true  },
-      // Above anchor — anchor bottom edge; slide horizontally
       { l: anchorX - PW / 2,    t: anchorY - GAP - PH,  cssBottom: vh-(anchorY-GAP),  freeX: true  },
-      // Below anchor — slide horizontally
       { l: anchorX - PW / 2,    t: anchorY + GAP,        cssBottom: null,              freeX: true  },
     ]
 
     const best = candidates
       .map(c => {
-        let { l, t } = c
-        if (c.freeY) t = Math.max(MARGIN, Math.min(t, vh - PH - MARGIN))
-        if (c.freeX) l = Math.max(MARGIN, Math.min(l, vw - PW - MARGIN))
-        return { l, t, cssBottom: c.cssBottom, area: visibleArea(l, t) }
+        let { l, t: tt } = c
+        if (c.freeY) tt = Math.max(MARGIN, Math.min(tt, vh - PH - MARGIN))
+        if (c.freeX) l  = Math.max(MARGIN, Math.min(l,  vw - PW - MARGIN))
+        return { l, t: tt, cssBottom: c.cssBottom, area: visibleArea(l, tt) }
       })
       .reduce((a, b) => b.area > a.area ? b : a)
 
@@ -192,23 +188,18 @@ export function MapPage({ books, onToggleWant, onToggleBought, openStand, onStan
   }
 
   // Open programmatically (pin button auto-open): scroll the marker into the
-  // visible area first, then read its bounding rect — identical to a real tap.
-  // Without the scroll step, a pin that is off-screen (the map image can be
-  // wider/taller than the viewport on mobile) gets clamped by placePopup and
-  // the popup appears far from the actual pin.
+  // visible area first, then read its bounding rect.
   const openPopupForStand = useCallback((code) => {
     if (!coords || !coords[code]) return
     const markerEl = containerRef.current?.querySelector(`[data-stand="${code}"]`)
     if (markerEl) {
       markerEl.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'center' })
-      // Wait one frame so the scroll has committed before reading the rect.
       requestAnimationFrame(() => {
         const r = markerEl.getBoundingClientRect()
         placePopup(r.left + r.width / 2, r.top + r.height / 2)
         setSelectedStand(code)
       })
     } else if (imgRef.current) {
-      // Fallback: compute from image rect (no marker element found yet)
       const pos   = coords[code]
       const iRect = imgRef.current.getBoundingClientRect()
       placePopup(
@@ -222,15 +213,11 @@ export function MapPage({ books, onToggleWant, onToggleBought, openStand, onStan
   function handleMarkerClick(code, e) {
     e.stopPropagation()
     if (selectedStand === code) { setSelectedStand(null); return }
-    // Use the tapped element's own bounding rect — always exactly right,
-    // regardless of scroll position or image load timing.
     const r = e.currentTarget.getBoundingClientRect()
     placePopup(r.left + r.width / 2, r.top + r.height / 2)
     setSelectedStand(code)
   }
 
-  // Auto-open a stand popup when the parent navigates here via the pin button.
-  // Wait for both coords and the image to have laid out (imgLoaded) so getBoundingClientRect is reliable.
   useEffect(() => {
     if (!openStand || !coords || !imgLoaded) return
     openPopupForStand(openStand)
@@ -262,9 +249,9 @@ export function MapPage({ books, onToggleWant, onToggleBought, openStand, onStan
         books={books}
         publishers={publishers}
         activeDay={activeDay}
+        locale={locale}
         onToggleWant={onToggleWant}
         onToggleBought={onToggleBought}
-
         onClose={() => setSelectedStand(null)}
       />
     </div>,
@@ -278,7 +265,7 @@ export function MapPage({ books, onToggleWant, onToggleBought, openStand, onStan
           <input
             className="search-bar"
             type="search"
-            placeholder="Pesquisar por stand, editora, ou livro..."
+            placeholder={t('map_search_ph')}
             value={query}
             onChange={e => { setQuery(e.target.value); setSelectedStand(null) }}
           />
@@ -287,9 +274,9 @@ export function MapPage({ books, onToggleWant, onToggleBought, openStand, onStan
             value={activeDay || ''}
             onChange={e => { setActiveDay(e.target.value || null); setSelectedStand(null) }}
           >
-            <option value="">Todos os dias</option>
+            <option value="">{t('map_all_days')}</option>
             {allDays.map(day => (
-              <option key={day} value={day}>{formatDate(day)}</option>
+              <option key={day} value={day}>{formatDate(day, locale)}</option>
             ))}
           </select>
         </div>
@@ -297,11 +284,11 @@ export function MapPage({ books, onToggleWant, onToggleBought, openStand, onStan
           <button
             className={`legend-item legend-item--want ${markerFilter === 'want' ? 'legend-item--active' : ''}`}
             onClick={() => setMarkerFilter(f => f === 'want' ? null : 'want')}
-          >Para comprar</button>
+          >{t('map_want')}</button>
           <button
             className={`legend-item legend-item--bought ${markerFilter === 'bought' ? 'legend-item--active' : ''}`}
             onClick={() => setMarkerFilter(f => f === 'bought' ? null : 'bought')}
-          >Comprado</button>
+          >{t('map_bought')}</button>
         </div>
       </div>
 

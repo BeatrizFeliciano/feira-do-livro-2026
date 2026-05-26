@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { WORKER_URL } from '../constants'
+import { useLanguage } from '../LanguageContext'
+import { makeT } from '../i18n'
 
 const LIMIT = 50
 const TOTAL_ALL_BOOKS = 45234
@@ -8,24 +10,27 @@ const TOTAL_LDD_BOOKS = 5809
 const normaliseIsbn = isbn => (isbn || '').replace(/\D/g, '')
 const fmtCount = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
 
-const GR_SHELF_LABELS = {
-  'to-read':           'Para ler',
-  'currently-reading': 'A ler',
-  'read':              'Lidos',
-  'did-not-finish':    'Desistiu',
+// Maps GR shelf key → i18n key
+const GR_SHELF_I18N = {
+  'to-read':           'gr_to_read',
+  'currently-reading': 'gr_reading',
+  'read':              'gr_read',
+  'did-not-finish':    'gr_dnf',
 }
 const GR_SHELF_ORDER = ['to-read', 'currently-reading', 'read', 'did-not-finish']
 
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = useState(value)
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(timer)
   }, [value, delay])
   return debounced
 }
 
 function CatalogCard({ book, inList, grShelfLabel, onAdd, onRemove }) {
+  const { lang } = useLanguage()
+  const t = makeT(lang)
   const [imgError, setImgError] = useState(false)
   const cover = book.cover_jpg || book.cover_webp
 
@@ -69,9 +74,9 @@ function CatalogCard({ book, inList, grShelfLabel, onAdd, onRemove }) {
         <button
           className={`btn-action btn-want ${inList ? 'active' : ''}`}
           onClick={inList ? onRemove : onAdd}
-          title={inList ? 'Remover da lista' : 'Para comprar'}
+          title={inList ? t('action_remove_list') : t('action_want')}
         >
-          {inList ? '♥ Quero' : '♡ Quero'}
+          {inList ? t('catalog_want') : t('catalog_want_not')}
         </button>
       </div>
     </div>
@@ -79,6 +84,9 @@ function CatalogCard({ book, inList, grShelfLabel, onAdd, onRemove }) {
 }
 
 export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnboarding, onAdd, onRemove, onConnectGoodreads }) {
+  const { lang } = useLanguage()
+  const t = makeT(lang)
+
   const [inputVal, setInputVal]     = useState('')
   const [catalogFilter, setCatalogFilter] = useState('all')   // 'all' | 'ldd'
   const [grFilter, setGrFilter]           = useState(null)    // null | 'goodreads-all' | shelf key
@@ -235,7 +243,7 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
         if (query.trim()) {
           setResults([]); setHasMore(false)
         } else {
-          setFetchError('Não foi possível carregar o catálogo.')
+          setFetchError('catalog_error')
         }
         setFetching(false)
         fetchingRef.current = false
@@ -261,7 +269,8 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
     const isbn         = normaliseIsbn(book.isbn)
     const isLdd        = Boolean(book.pvp_livro_do_dia)
     const inList       = manualIds.has(isbn)
-    const grShelfLabel = grIsbnToShelf.has(isbn) ? GR_SHELF_LABELS[grIsbnToShelf.get(isbn)] : null
+    const grShelfKey   = grIsbnToShelf.has(isbn) ? GR_SHELF_I18N[grIsbnToShelf.get(isbn)] : null
+    const grShelfLabel = grShelfKey ? t(grShelfKey) : null
     return (
       <CatalogCard
         key={isbn || book.titulo}
@@ -295,7 +304,7 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
         key={`${isbn}-${book.gr_title || book.titulo}`}
         book={book}
         inList={inList}
-        grShelfLabel={GR_SHELF_LABELS[book.gr_shelf]}
+        grShelfLabel={t(GR_SHELF_I18N[book.gr_shelf] || book.gr_shelf)}
         onAdd={() => onAdd(isbn, {
           titulo:           book.titulo,
           autor:            book.autor,
@@ -334,14 +343,14 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
                  : TOTAL_LDD_BOOKS
 
   // GR pill counts — reflect active catalog filter
-  const grCount = (books) => catalogFilter === 'ldd' ? books.filter(b => Boolean(b.pvp_livro_do_dia)).length : books.length
+  const grCount = (bks) => catalogFilter === 'ldd' ? bks.filter(b => Boolean(b.pvp_livro_do_dia)).length : bks.length
 
   return (
     <div className="page">
       <input
         className="search-bar"
         type="search"
-        placeholder="Pesquisar por título, autor ou editora…"
+        placeholder={t('catalog_search_ph')}
         value={inputVal}
         onChange={e => setInputVal(e.target.value)}
         autoFocus
@@ -349,28 +358,28 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
 
       {needsOnboarding && onConnectGoodreads && (
         <button className="catalog-gr-prompt" onClick={onConnectGoodreads}>
-          Ligar Goodreads para ver os teus livros aqui →
+          {t('catalog_gr_prompt')}
         </button>
       )}
 
       <div className="catalog-filter-row">
         <div className="shelf-tabs shelf-tabs--catalog">
           <button className={`shelf-tab ${catalogFilter === 'all' ? 'active' : ''}`} onClick={() => setCatalogFilter('all')}>
-            Todos <span className="shelf-tab__count">{fmtCount(countAll)}</span>
+            {t('catalog_all')} <span className="shelf-tab__count">{fmtCount(countAll)}</span>
           </button>
           <button className={`shelf-tab ${catalogFilter === 'ldd' ? 'active' : ''}`} onClick={() => setCatalogFilter('ldd')}>
-            Livros do Dia <span className="shelf-tab__count">{fmtCount(countLdd)}</span>
+            {t('catalog_ldd')} <span className="shelf-tab__count">{fmtCount(countLdd)}</span>
           </button>
         </div>
 
         {availableGrShelves.length > 0 && (
           <div className="shelf-tabs shelf-tabs--gr">
-            <span className="shelf-tabs__label">Goodreads</span>
+            <span className="shelf-tabs__label">{t('catalog_gr_label')}</span>
             <button
               className={`shelf-tab shelf-tab--gr ${grFilter === 'goodreads-all' ? 'active' : ''}`}
               onClick={() => setGrFilter(f => f === 'goodreads-all' ? null : 'goodreads-all')}
             >
-              Todos <span className="shelf-tab__count">{grCount(Object.values(grBooksByShelf).flat())}</span>
+              {t('catalog_all')} <span className="shelf-tab__count">{grCount(Object.values(grBooksByShelf).flat())}</span>
             </button>
             {availableGrShelves.map(shelf => (
               <button
@@ -378,7 +387,7 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
                 className={`shelf-tab shelf-tab--gr ${grFilter === shelf ? 'active' : ''}`}
                 onClick={() => setGrFilter(f => f === shelf ? null : shelf)}
               >
-                {GR_SHELF_LABELS[shelf]}
+                {t(GR_SHELF_I18N[shelf])}
                 <span className="shelf-tab__count">{grCount(grBooksByShelf[shelf] || [])}</span>
               </button>
             ))}
@@ -391,8 +400,8 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
         grShelfBooks.length === 0
           ? <p className="catalog-count">
               {query.trim()
-                ? `Sem resultados para "${query.trim()}".`
-                : 'Nenhum livro encontrado.'}
+                ? t('catalog_no_results', query.trim())
+                : t('catalog_empty')}
             </p>
           : <div className="book-list">{grShelfBooks.map(renderGrCard)}</div>
 
@@ -400,7 +409,7 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
         /* ── Local search (title + author + publisher, client-side) ── */
         <>
           {localSearchResults.length === 0
-            ? <p className="catalog-count">Sem resultados para &ldquo;{query.trim()}&rdquo;.</p>
+            ? <p className="catalog-count">{t('catalog_no_results', query.trim())}</p>
             : <div className="book-list">{localSearchResults.map(renderApiCard)}</div>
           }
         </>
@@ -408,25 +417,25 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
       ) : (
         /* ── API view (Todos / Livros do Dia) ────── */
         fetchError ? (
-          <p className="empty-state">{fetchError}</p>
+          <p className="empty-state">{t(fetchError)}</p>
         ) : (
           <>
             {results.length === 0 && !fetching && (
               <p className="catalog-count">
                 {query.trim()
-                  ? `Sem resultados para "${query.trim()}".`
-                  : 'Nenhum livro encontrado.'}
+                  ? t('catalog_no_results', query.trim())
+                  : t('catalog_empty')}
               </p>
             )}
             <div className="book-list">{results.map(renderApiCard)}</div>
             {hasMore && (
               <div ref={sentinelRef} className="catalog-sentinel">
-                {fetching && results.length > 0 && <p className="catalog-count">A carregar mais…</p>}
+                {fetching && results.length > 0 && <p className="catalog-count">{t('catalog_loading_more')}</p>}
               </div>
             )}
             {!hasMore && results.length > 0 && (
               <p className="catalog-count" style={{ textAlign: 'center', opacity: 0.5, padding: '16px 0' }}>
-                — fim dos resultados —
+                {t('catalog_end')}
               </p>
             )}
           </>

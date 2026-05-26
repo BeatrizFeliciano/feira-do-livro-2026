@@ -2,22 +2,23 @@ import { useState, useMemo } from 'react'
 import { ShelfBadge } from '../components/ShelfBadge'
 import { TrashIcon } from '../components/TrashIcon'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { useLanguage } from '../LanguageContext'
+import { makeT } from '../i18n'
 
-const WEEKDAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
-
-const MONTHS = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
-
-function formatDate(dateStr) {
+function formatDate(dateStr, locale) {
   const d = new Date(dateStr + 'T00:00:00')
-  return `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${d.toLocaleDateString('pt-PT', { month: 'long' })}`
+  const s = d.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-function formatDateShort(raw) {
-  const [, m, d] = raw.split('-')
-  return `${parseInt(d)} ${MONTHS[parseInt(m) - 1]}`
+function formatDateShort(dateStr, locale) {
+  const d = new Date(dateStr + 'T00:00:00')
+  return d.toLocaleDateString(locale, { day: 'numeric', month: 'short' })
 }
 
 function BookRow({ book, onToggleWant, onToggleBought, onRemove }) {
+  const { lang } = useLanguage()
+  const t = makeT(lang)
   const [confirmingRemove, setConfirmingRemove] = useState(false)
 
   return (
@@ -41,14 +42,14 @@ function BookRow({ book, onToggleWant, onToggleBought, onRemove }) {
         <button
           className={`btn-action btn-want btn-sm ${book.wantToBuy ? 'active' : ''}`}
           onClick={() => onToggleWant(book.id)}
-          title={book.wantToBuy ? 'Remover' : 'Para comprar'}
+          title={book.wantToBuy ? t('action_remove') : t('action_want')}
         >
           {book.wantToBuy ? '♥' : '♡'}
         </button>
         <button
           className={`btn-action btn-bought btn-sm ${book.bought ? 'active' : ''}`}
           onClick={() => onToggleBought(book.id)}
-          title={book.bought ? 'Desmarcar' : 'Comprado'}
+          title={book.bought ? t('action_unbought') : t('action_bought')}
         >
          {book.bought ? '✓' : '○'}
         </button>
@@ -56,14 +57,14 @@ function BookRow({ book, onToggleWant, onToggleBought, onRemove }) {
           <button
             className="btn-action btn-remove btn-sm"
             onClick={() => setConfirmingRemove(true)}
-            title="Remover da lista"
+            title={t('action_remove_list')}
           >
             <TrashIcon />
           </button>
         )}
         {confirmingRemove && (
           <ConfirmDialog
-            message={`Remover "${book.feira_titulo}" da tua lista?`}
+            message={t('confirm_remove_book', book.feira_titulo)}
             onConfirm={() => onRemove(book.id)}
             onCancel={() => setConfirmingRemove(false)}
           />
@@ -73,10 +74,10 @@ function BookRow({ book, onToggleWant, onToggleBought, onRemove }) {
   )
 }
 
-const FILTERS = [
-  { key: 'all',       label: 'Todos' },
-  { key: 'not-bought', label: 'Por comprar' },
-  { key: 'bought',    label: 'Comprado' },
+const FILTER_KEYS = [
+  { key: 'all',        labelKey: 'days_all' },
+  { key: 'not-bought', labelKey: 'days_not_bought' },
+  { key: 'bought',     labelKey: 'days_bought' },
 ]
 
 function matches(book, query) {
@@ -85,6 +86,10 @@ function matches(book, query) {
 }
 
 export function DaysPage({ books, onToggleWant, onToggleBought, onShowOnMap, onRemove }) {
+  const { lang } = useLanguage()
+  const t = makeT(lang)
+  const locale = t('date_locale')
+
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [activeDay, setActiveDay] = useState(null)
@@ -137,34 +142,34 @@ export function DaysPage({ books, onToggleWant, onToggleBought, onShowOnMap, onR
           value={activeDay || ''}
           onChange={e => setActiveDay(e.target.value || null)}
         >
-          <option value="">Todos os dias</option>
+          <option value="">{t('days_all_days')}</option>
           {allDates.map(day => (
-            <option key={day} value={day}>{formatDateShort(day)}</option>
+            <option key={day} value={day}>{formatDateShort(day, locale)}</option>
           ))}
         </select>
         <input
           className="search-bar"
           type="search"
-          placeholder="Pesquisar por título ou autor..."
+          placeholder={t('days_search_ph')}
           value={query}
           onChange={e => setQuery(e.target.value)}
         />
       </div>
 
       <div className="day-filter-tabs">
-        {FILTERS.map(f => (
+        {FILTER_KEYS.map(f => (
           <button
             key={f.key}
             className={`shelf-tab ${filter === f.key ? 'active' : ''}`}
             onClick={() => setFilter(f.key)}
           >
-            {f.label}
+            {t(f.labelKey)}
           </button>
         ))}
       </div>
 
       {days.length === 0 && (
-        <p className="empty-state">Nenhum livro encontrado com este filtro.</p>
+        <p className="empty-state">{t('days_empty')}</p>
       )}
 
       {days.map(({ date, booksOnDay, byStand }) => {
@@ -175,11 +180,11 @@ export function DaysPage({ books, onToggleWant, onToggleBought, onShowOnMap, onR
           <div key={date} className={`day-section ${isBest ? 'day-section--best' : ''}`}>
             <div className="day-section__header">
               <div className="day-section__title">
-                {isBest && <span className="best-badge" title="Melhor dia para ir">★</span>}
-                <span>{formatDate(date)}</span>
+                {isBest && <span className="best-badge" title={t('books_best_day_title')}>★</span>}
+                <span>{formatDate(date, locale)}</span>
               </div>
               <div className="day-section__counts">
-                <span className="count-badge">{booksOnDay.length} livro{booksOnDay.length !== 1 ? 's' : ''}</span>
+                <span className="count-badge">{t('books_n_books', booksOnDay.length)}</span>
                 {wantCount > 0 && (
                   <span className="count-badge count-badge--want">♥ {wantCount}</span>
                 )}
@@ -195,7 +200,7 @@ export function DaysPage({ books, onToggleWant, onToggleBought, onShowOnMap, onR
                     <button
                       className="btn-pin"
                       onClick={() => onShowOnMap(stand)}
-                      title={`Ver no mapa — Stand ${stand}`}
+                      title={t('action_view_map', stand)}
                     >📍</button>
                   )}
                 </div>

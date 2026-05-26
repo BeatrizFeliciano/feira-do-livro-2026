@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import * as fuzz from 'fuzzball'
 
 import { WORKER_URL } from '../constants'
+import { useLanguage } from '../LanguageContext'
+import { makeT } from '../i18n'
 
 const SHELVES       = ['to-read', 'read', 'currently-reading', 'did-not-finish']
 const FUZZY_THRESHOLD = 72   // same default as the Python script
@@ -128,7 +130,7 @@ const yieldToUI = () => new Promise(resolve => setTimeout(resolve, 0))
 
 // ── Core matching: 3-step port of match_goodreads_feira.py ─
 
-async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
+async function fetchAndMatch(userId, faireBooks, onProgress, signal, t) {
 
   // Pre-build indices (done once, before any comparisons)
   const titleAuthorWordIndex = buildTitleAuthorWordIndex(faireBooks)
@@ -149,7 +151,7 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
 
   for (let i = 0; i < SHELVES.length; i++) {
     const shelf = SHELVES[i]
-    onProgress(`A carregar livros do Goodreads… (${i + 1}/${SHELVES.length})`)
+    onProgress(t('loading_gr_shelf', i + 1, SHELVES.length))
     const target  = `https://www.goodreads.com/review/list_rss/${userId}?shelf=${encodeURIComponent(shelf)}&per_page=200`
     const proxyUrl = `${WORKER_URL}?url=${encodeURIComponent(target)}`
     try {
@@ -173,7 +175,7 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
 
   // ── Step 1: ISBN matching ──────────────────────────────
   // Exact port of match_by_isbn(): try gr_isbn13 then gr_isbn, also the last-10 digits
-  onProgress('A cruzar os teus livros com a feira — passo 1 de 3: ISBN e título em inglês…')
+  onProgress(t('loading_match_isbn'))
   await yieldToUI()
   const afterStep1 = []
 
@@ -200,14 +202,14 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
   // MAX_WORD_FREQ: skip words that appear in too many books — they are stop-words
   // that don't narrow the candidate set and dominate runtime with 46k books.
   const MAX_WORD_FREQ = 150
-  onProgress('A cruzar os teus livros com a feira — passo 2 de 3: título e autor…')
+  onProgress(t('loading_match_fuzzy', 0, afterStep1.length))
   await yieldToUI()
   const afterStep2pre = []
 
   for (let gi = 0; gi < afterStep1.length; gi++) {
     // Yield to UI every 20 books so the progress message stays live
     if (gi > 0 && gi % 20 === 0) {
-      onProgress(`A cruzar os teus livros com a feira — passo 2 de 3: título e autor… (${gi}/${afterStep1.length})`)
+      onProgress(t('loading_match_fuzzy', gi, afterStep1.length))
       await yieldToUI()
     }
     const gr = afterStep1[gi]
@@ -260,7 +262,7 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
   // ── Step 3: Author-based matching ─────────────────────
   // Exact port of match_by_author().
   // Uses pre-built author-last-name index, then verifies with authorExactMatch().
-  onProgress('A cruzar os teus livros com a feira — passo 3 de 3: autor…')
+  onProgress(t('loading_match_author'))
   await yieldToUI()
 
   for (const gr of afterStep2) {
@@ -329,6 +331,12 @@ function extractUserId(input) {
 // ── Hook ─────────────────────────────────────────────────
 
 export function useBooks() {
+  const { lang } = useLanguage()
+  // langRef lets us read the current lang inside effects/async without adding lang
+  // to dependency arrays (which would cause unintended re-fetches).
+  const langRef = useRef(lang)
+  useEffect(() => { langRef.current = lang })
+
   const [allFeireBooks, setAllFeireBooks]   = useState(null)
   const [rawBooks, setRawBooks]             = useState(null)
   const [bookState, setBookState]           = useState(loadBookState)
@@ -341,7 +349,7 @@ export function useBooks() {
   // Lazy-load all_feira_books.json — only needed when a GR user is set
   useEffect(() => {
     if (!userId) return
-    setLoadingMessage('A carregar catálogo da feira...')
+    setLoadingMessage(makeT(langRef.current)('loading_catalog'))
     fetch(import.meta.env.BASE_URL + 'all_feira_books.json')
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
@@ -367,10 +375,11 @@ export function useBooks() {
 
   useEffect(() => {
     if (!allFeireBooks || !userId || rawBooks !== null) return
+    const t = makeT(langRef.current)
     const controller = new AbortController()
     setFetching(true)
     setError(null)
-    fetchAndMatch(userId, allFeireBooks, setLoadingMessage, controller.signal)
+    fetchAndMatch(userId, allFeireBooks, setLoadingMessage, controller.signal, t)
       .then(matched => {
         localStorage.setItem(LS_CACHE_KEY, JSON.stringify(matched))
         setRawBooks(matched)
@@ -378,7 +387,7 @@ export function useBooks() {
       })
       .catch(e => {
         if (e.name === 'AbortError') return
-        setError('Não foi possível carregar os livros do Goodreads. Verifica se o teu perfil é público.')
+        setError('error_gr_profile')
         setFetching(false)
       })
     return () => controller.abort()
@@ -438,13 +447,13 @@ export function useBooks() {
   function setUser(input) {
     const trimmed = input.trim()
     const id = extractUserId(trimmed)
-    if (!id) { setError('URL inválido. Copia o URL do teu perfil do Goodreads.'); return false }
+    if (!id) { setError('error_gr_url_invalid'); return false }
 
     const isAuthorUrl = /\/author\/show\/\d+/.test(trimmed)
     if (isAuthorUrl) {
       // Try to resolve the author page to find the real user ID
       setError(null); setRawBooks(null)
-      setLoadingMessage('A identificar o teu perfil de leitor…')
+      setLoadingMessage(makeT(langRef.current)('loading_gr_profile_id'))
       setFetching(true)
       const authorPageUrl = `https://www.goodreads.com/author/show/${id}`
       fetch(`${WORKER_URL}?url=${encodeURIComponent(authorPageUrl)}`)

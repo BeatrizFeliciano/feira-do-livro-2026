@@ -3,6 +3,8 @@ import { useBooks } from './hooks/useBooks'
 import { BooksPage } from './pages/BooksPage'
 import { MapPage } from './pages/MapPage'
 import { CatalogPage } from './pages/CatalogPage'
+import { useLanguage } from './LanguageContext'
+import { makeT } from './i18n'
 import logoUrl from './assets/logo.svg'
 import './App.css'
 
@@ -23,12 +25,14 @@ function setHash(tab) {
 }
 
 const TABS = [
-  { key: 'catalog', label: 'Catálogo da Feira' },
-  { key: 'books',   label: 'Os Meus Livros' },
-  { key: 'map',     label: 'Mapa' },
+  { key: 'catalog', labelKey: 'nav_catalog' },
+  { key: 'books',   labelKey: 'nav_books' },
+  { key: 'map',     labelKey: 'nav_map' },
 ]
 
 function AboutPage({ needsOnboarding, loading, loadingMessage, onStart, onSetUser, onClearUser, onRefresh, error }) {
+  const { lang } = useLanguage()
+  const t = makeT(lang)
   const [input, setInput] = useState('')
 
   function handleSubmit(e) {
@@ -41,21 +45,20 @@ function AboutPage({ needsOnboarding, loading, loadingMessage, onStart, onSetUse
     <div className="about-page">
       <div className="about-card">
         <img src={logoUrl} alt="My Books" className="about-logo" />
-        <p className="about-subtitle">Os meus livros na<br/>Feira do Livro de Lisboa 2026</p>
+        <p className="about-subtitle" dangerouslySetInnerHTML={{ __html: t('about_subtitle').replace('\n', '<br/>') }} />
         <ul className="about-features">
-          <li>Explora o <strong>catálogo completo</strong> da feira e adiciona livros à tua lista</li>
-          <li>Vê quais os <strong>livros do dia</strong> com desconto e em que dias estão disponíveis</li>
-          <li>Liga o <strong>Goodreads</strong> para encontrares automaticamente os teus livros na feira</li>
-          <li>Acompanha o que já <strong>compraste</strong> e quanto <strong>poupaste</strong></li>
-          <li>Localiza qualquer stand no <strong>mapa da feira</strong></li>
+          <li dangerouslySetInnerHTML={{ __html: t('about_feature_1') }} />
+          <li dangerouslySetInnerHTML={{ __html: t('about_feature_2') }} />
+          <li dangerouslySetInnerHTML={{ __html: t('about_feature_3') }} />
+          <li dangerouslySetInnerHTML={{ __html: t('about_feature_4') }} />
+          <li dangerouslySetInnerHTML={{ __html: t('about_feature_5') }} />
         </ul>
 
         {needsOnboarding ? (
           <>
             <form className="onboarding-form" onSubmit={handleSubmit}>
               <p className="onboarding-instructions">
-                Liga o Goodreads para cruzar a tua lista com os livros da feira.{' '}
-                Copia o URL do teu perfil do Goodreads:
+                {t('about_gr_instructions')}
               </p>
               <input
                 className="onboarding-input"
@@ -64,32 +67,32 @@ function AboutPage({ needsOnboarding, loading, loadingMessage, onStart, onSetUse
                 value={input}
                 onChange={e => setInput(e.target.value)}
               />
-              {error && <p className="onboarding-error">{error}</p>}
+              {error && <p className="onboarding-error">{t(error)}</p>}
               <button className="about-btn" type="submit" disabled={!input.trim()}>
-                Ligar Goodreads →
+                {t('about_gr_btn')}
               </button>
             </form>
             <button className="about-skip-btn" onClick={onStart}>
-              Continuar sem Goodreads →
+              {t('about_skip_btn')}
             </button>
           </>
         ) : loading ? (
           <div className="onboarding-loading">
             <div className="loading-spinner" />
-            <p className="onboarding-loading__msg">{loadingMessage || 'A carregar os teus livros do Goodreads…'}</p>
+            <p className="onboarding-loading__msg">{loadingMessage || t('loading_gr')}</p>
           </div>
         ) : (
           <>
             <button className="about-btn" onClick={onStart}>
-              Ver o catálogo →
+              {t('about_view_catalog')}
             </button>
             <div className="about-account">
               <button className="about-account-btn" onClick={onRefresh}>
-                Atualizar livros
+                {t('about_refresh')}
               </button>
               <span className="about-account-sep">·</span>
               <button className="about-account-btn" onClick={onClearUser}>
-                Mudar conta
+                {t('about_change_acct')}
               </button>
             </div>
           </>
@@ -100,9 +103,12 @@ function AboutPage({ needsOnboarding, loading, loadingMessage, onStart, onSetUse
 }
 
 export default function App() {
+  const { lang, toggleLang } = useLanguage()
+  const t = makeT(lang)
+
   const [tab, setTab] = useState(getTabFromHash)
   const [openStand, setOpenStand] = useState(null)
-  const [notification, setNotification] = useState(null) // { type: 'error'|'warning', message }
+  const [notification, setNotification] = useState(null) // { type: 'error'|'warning', messageKey }
   const {
     books, manualBooks, grBooks, faireBooks, loading, loadingMessage, needsOnboarding, error,
     setUser, clearUser, refresh, toggleWant, toggleBought, addManual, removeManual,
@@ -128,9 +134,9 @@ export default function App() {
     prevLoadingRef.current = loading
     if (!wasLoading || loading || needsOnboarding || tab !== 'about') return
     if (error) {
-      setNotification({ type: 'error', message: 'Não foi possível carregar os livros do Goodreads. Verifica se o teu perfil e as tuas listas são públicos.' })
+      setNotification({ type: 'error', messageKey: 'error_gr_profile' })
     } else if (grBooks.length === 0) {
-      setNotification({ type: 'warning', message: 'Nenhum livro da tua lista foi encontrado na feira. Verifica se as tuas listas no Goodreads são públicas.' })
+      setNotification({ type: 'warning', messageKey: 'error_gr_empty' })
     }
     navigate('catalog')
   }, [loading, needsOnboarding, tab, error, grBooks.length])
@@ -138,8 +144,8 @@ export default function App() {
   // Auto-dismiss errors only; warnings stay until manually closed
   useEffect(() => {
     if (!notification || notification.type !== 'error') return
-    const t = setTimeout(() => setNotification(null), 6000)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setNotification(null), 6000)
+    return () => clearTimeout(timer)
   }, [notification])
 
   // Dismiss any warning if books are successfully loaded
@@ -173,27 +179,30 @@ export default function App() {
           <button
             className="app-logo-btn"
             onClick={() => navigate('about')}
-            aria-label="Início"
+            aria-label={t('nav_home_aria')}
           >
             <img src={logoUrl} alt="My Books" className="app-logo" />
           </button>
           <nav className="app-tabs">
-            {TABS.map(t => (
+            {TABS.map(tabItem => (
               <button
-                key={t.key}
-                className={`app-tab ${tab === t.key ? 'active' : ''}`}
-                onClick={() => navigate(t.key)}
+                key={tabItem.key}
+                className={`app-tab ${tab === tabItem.key ? 'active' : ''}`}
+                onClick={() => navigate(tabItem.key)}
               >
-                {t.label}
+                {t(tabItem.labelKey)}
               </button>
             ))}
           </nav>
+          <button className="lang-toggle" onClick={toggleLang}>
+            {lang === 'pt' ? 'EN' : 'PT'}
+          </button>
         </div>
       </header>
 
       {notification && (
         <div className={`app-notification app-notification--${notification.type}`}>
-          <span>{notification.message}</span>
+          <span>{t(notification.messageKey)}</span>
           <button className="app-notification__close" onClick={() => setNotification(null)}>✕</button>
         </div>
       )}

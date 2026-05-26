@@ -91,6 +91,24 @@
   }
 }
 
+.lang-toggle {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+.lang-toggle:hover { color: var(--color-accent); border-color: var(--color-accent); }
+@media (max-width: 640px) {
+  .lang-toggle { padding: 3px 6px; font-size: 0.7rem; }
+}
+
 .app-main { max-width: 800px; margin: 0 auto; width: 100%; padding: 0 16px 32px; }
 .app-main--fullwidth { max-width: 100%; padding: 0; }
 .app-main--about { padding-bottom: 0; }

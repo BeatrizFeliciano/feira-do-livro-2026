@@ -1,26 +1,27 @@
 import { useState, useMemo, useEffect } from 'react'
 import { BookCard } from '../components/BookCard'
 import { ShelfBadge } from '../components/ShelfBadge'
+import { useLanguage } from '../LanguageContext'
+import { makeT } from '../i18n'
 
 const PAGE_SIZE = 50
 
-const STATUS_FILTERS = [
-  { key: 'all',        label: 'Todos' },
-  { key: 'ldd',        label: 'Livros do Dia' },
-  { key: 'not-bought', label: 'Por comprar' },
-  { key: 'bought',     label: 'Comprado' },
+const STATUS_FILTER_KEYS = [
+  { key: 'all',        labelKey: 'books_filter_all' },
+  { key: 'ldd',        labelKey: 'books_filter_ldd' },
+  { key: 'not-bought', labelKey: 'books_filter_not_bought' },
+  { key: 'bought',     labelKey: 'books_filter_bought' },
 ]
 
-const MONTHS = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez']
-const WEEKDAYS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado']
-
-function formatDate(dateStr) {
+function formatDate(dateStr, locale) {
   const d = new Date(dateStr + 'T00:00:00')
-  return `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${d.toLocaleDateString('pt-PT', { month: 'long' })}`
+  const s = d.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }
-function formatDateShort(raw) {
-  const [, m, d] = raw.split('-')
-  return `${parseInt(d)} ${MONTHS[parseInt(m) - 1]}`
+
+function formatDateShort(dateStr, locale) {
+  const d = new Date(dateStr + 'T00:00:00')
+  return d.toLocaleDateString(locale, { day: 'numeric', month: 'short' })
 }
 
 function PriceBlock({ pvp, pvpFeira, pvpDia }) {
@@ -48,6 +49,8 @@ function PriceBlock({ pvp, pvpFeira, pvpDia }) {
 
 // ── Book row used in the day-grouped view ─────────────────
 function BookRow({ book, onToggleWant, onToggleBought, onShowOnMap }) {
+  const { lang } = useLanguage()
+  const t = makeT(lang)
   return (
     <div className={`day-book-row ${book.bought ? 'day-book-row--bought' : ''}`}>
       <img
@@ -73,14 +76,14 @@ function BookRow({ book, onToggleWant, onToggleBought, onShowOnMap }) {
         <button
           className={`btn-action btn-want btn-sm ${book.wantToBuy ? 'active' : ''}`}
           onClick={() => onToggleWant(book.id)}
-          title={book.wantToBuy ? 'Remover' : 'Para comprar'}
+          title={book.wantToBuy ? t('action_remove') : t('action_want')}
         >
           {book.wantToBuy ? '♥' : '♡'}
         </button>
         <button
           className={`btn-action btn-bought btn-sm ${book.bought ? 'active' : ''}`}
           onClick={() => onToggleBought(book.id)}
-          title={book.bought ? 'Desmarcar' : 'Comprado'}
+          title={book.bought ? t('action_unbought') : t('action_bought')}
         >
           {book.bought ? '✓' : '○'}
         </button>
@@ -113,6 +116,10 @@ function matches(book, query) {
 // ── Main component ────────────────────────────────────────
 
 export function BooksPage({ books, loading, loadingMessage, error, onToggleWant, onToggleBought, onShowOnMap, onNavigateToCatalog }) {
+  const { lang } = useLanguage()
+  const t = makeT(lang)
+  const locale = t('date_locale')
+
   const [status, setStatus]       = useState('all')
   const [query, setQuery]         = useState('')
   const [page, setPage]           = useState(1)
@@ -201,21 +208,21 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
   if (loading && books.length === 0) return (
     <div className="loading">
       <div className="loading-spinner" />
-      <p className="loading-detail">{loadingMessage || 'A carregar os teus livros…'}</p>
+      <p className="loading-detail">{loadingMessage || t('loading_books')}</p>
     </div>
   )
   if (error && books.length === 0) return (
     <div className="loading">
-      <span className="loading-error">{error}</span>
+      <span className="loading-error">{t(error)}</span>
     </div>
   )
   if (!loading && books.length === 0) return (
     <div className="empty-books">
-      <p className="empty-books__msg">Ainda não tens livros na tua lista.</p>
-      <p className="empty-books__hint">Explora o catálogo e adiciona os livros que queres comprar.</p>
+      <p className="empty-books__msg">{t('books_empty_msg')}</p>
+      <p className="empty-books__hint">{t('books_empty_hint')}</p>
       {onNavigateToCatalog && (
         <button className="empty-books__btn" onClick={onNavigateToCatalog}>
-          Ir para o Catálogo →
+          {t('books_empty_btn')}
         </button>
       )}
     </div>
@@ -226,12 +233,12 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
       {loading && (
         <div className="loading-banner">
           <div className="loading-spinner loading-spinner--sm" />
-          <span>{loadingMessage || 'A carregar os teus livros…'}</span>
+          <span>{loadingMessage || t('loading_books')}</span>
         </div>
       )}
       {error && !loading && (
         <div className="loading-banner loading-banner--error">
-          <span>{error}</span>
+          <span>{t(error)}</span>
         </div>
       )}
 
@@ -239,12 +246,12 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
         <div className="summary-bar">
           {wantedBooks.length > 0 && (
             <span className="summary-bar__pending">
-              <strong>{wantedBooks.length}</strong> por comprar · <strong>€{totalCost.toFixed(2)}</strong> · poupança <strong>€{pendingSavings.toFixed(2)}</strong>
+              <strong>{wantedBooks.length}</strong> {t('books_summary_to_buy')} · <strong>€{totalCost.toFixed(2)}</strong> · {t('books_summary_savings')} <strong>€{pendingSavings.toFixed(2)}</strong>
             </span>
           )}
           {boughtBooks.length > 0 && (
             <span className="summary-bar__bought">
-              ✓ <strong>{boughtBooks.length}</strong> comprado{boughtBooks.length !== 1 ? 's' : ''} · <strong>€{boughtCost.toFixed(2)}</strong> · poupaste <strong>€{boughtSavings.toFixed(2)}</strong>
+              {t('books_summary_bought_n', boughtBooks.length)} · <strong>€{boughtCost.toFixed(2)}</strong> · {t('books_summary_saved')} <strong>€{boughtSavings.toFixed(2)}</strong>
             </span>
           )}
         </div>
@@ -255,7 +262,7 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
         <input
           className="search-bar search-bar--inline"
           type="search"
-          placeholder="Pesquisar por título, autor, editora ou stand..."
+          placeholder={t('books_search_ph')}
           value={query}
           onChange={e => setQuery(e.target.value)}
         />
@@ -263,20 +270,18 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
           <button
             className={`view-toggle__btn ${viewMode === 'list' ? 'active' : ''}`}
             onClick={() => setViewMode('list')}
-            title="Vista em lista"
-          >☰ Lista</button>
+          >{t('books_view_list')}</button>
           <button
             className={`view-toggle__btn ${viewMode === 'days' ? 'active' : ''}`}
             onClick={() => setViewMode('days')}
-            title="Agrupar por dia"
-          >📅 Por dia</button>
+          >{t('books_view_days')}</button>
         </div>
       </div>
 
       {/* Row 2: status filters + day selector */}
       <div className="books-filter-row">
         <div className="shelf-tabs">
-          {STATUS_FILTERS.map(s => {
+          {STATUS_FILTER_KEYS.map(s => {
             const count =
               s.key === 'all'          ? booksForCount.length
               : s.key === 'ldd'        ? booksForCount.filter(b => b.livroDodia).length
@@ -288,7 +293,7 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
                 className={`shelf-tab ${status === s.key ? 'active' : ''}`}
                 onClick={() => setStatus(s.key)}
               >
-                {s.label} <span className="shelf-tab__count">{count}</span>
+                {t(s.labelKey)} <span className="shelf-tab__count">{count}</span>
               </button>
             )
           })}
@@ -299,9 +304,9 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
             value={activeDay || ''}
             onChange={e => setActiveDay(e.target.value || null)}
           >
-            <option value="">Todos os dias</option>
+            <option value="">{t('books_all_days')}</option>
             {allDates.map(day => (
-              <option key={day} value={day}>{formatDateShort(day)}</option>
+              <option key={day} value={day}>{formatDateShort(day, locale)}</option>
             ))}
           </select>
         )}
@@ -310,6 +315,9 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
       {/* ── List view ──────────────────────────────────────── */}
       {viewMode === 'list' && (
         <>
+          {filtered.length === 0 && (
+            <p className="empty-state">{t('books_empty_filtered')}</p>
+          )}
           <div className="book-list">
             {pageItems.map(book => (
               <BookCard
@@ -324,13 +332,13 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
           {totalPages > 1 && (
             <div className="pagination">
               <button className="pagination__btn" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
-                ‹ Anterior
+                {t('books_pagination_prev')}
               </button>
               <span className="pagination__info">
-                {page.toLocaleString('pt-PT')} / {totalPages.toLocaleString('pt-PT')}
+                {page.toLocaleString(locale)} / {totalPages.toLocaleString(locale)}
               </span>
               <button className="pagination__btn" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
-                Próxima ›
+                {t('books_pagination_next')}
               </button>
             </div>
           )}
@@ -341,7 +349,7 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
       {viewMode === 'days' && (
         <>
           {daySections.length === 0 && noDatBooks.length === 0 && (
-            <p className="empty-state">Nenhum livro encontrado.</p>
+            <p className="empty-state">{t('books_empty_filtered')}</p>
           )}
 
           {daySections.map(({ date, booksOnDay, byStand }) => {
@@ -351,11 +359,11 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
               <div key={date} className={`day-section ${isBest ? 'day-section--best' : ''}`}>
                 <div className="day-section__header">
                   <div className="day-section__title">
-                    {isBest && <span className="best-badge" title="Melhor dia para ir">★</span>}
-                    <span>{formatDate(date)}</span>
+                    {isBest && <span className="best-badge" title={t('books_best_day_title')}>★</span>}
+                    <span>{formatDate(date, locale)}</span>
                   </div>
                   <div className="day-section__counts">
-                    <span className="count-badge">{booksOnDay.length} livro{booksOnDay.length !== 1 ? 's' : ''}</span>
+                    <span className="count-badge">{t('books_n_books', booksOnDay.length)}</span>
                     {wantCount > 0 && <span className="count-badge count-badge--want">♥ {wantCount}</span>}
                   </div>
                 </div>
@@ -365,7 +373,7 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
                       <span className="stand-code">{stand}</span>
                       <span className="stand-name">{standBooks[0].feira_participante}</span>
                       {onShowOnMap && (
-                        <button className="btn-pin" onClick={() => onShowOnMap(stand)} title={`Ver no mapa — Stand ${stand}`}>📍</button>
+                        <button className="btn-pin" onClick={() => onShowOnMap(stand)} title={t('action_view_map', stand)}>📍</button>
                       )}
                     </div>
                     {standBooks.map(book => (
@@ -375,7 +383,7 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
                         onToggleWant={onToggleWant}
                         onToggleBought={onToggleBought}
                         onShowOnMap={onShowOnMap}
-                              />
+                      />
                     ))}
                   </div>
                 ))}
@@ -388,10 +396,10 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
             <div className="day-section day-section--no-date">
               <div className="day-section__header">
                 <div className="day-section__title">
-                  <span>Sem data de desconto</span>
+                  <span>{t('books_no_date')}</span>
                 </div>
                 <div className="day-section__counts">
-                  <span className="count-badge">{noDatBooks.length} livro{noDatBooks.length !== 1 ? 's' : ''}</span>
+                  <span className="count-badge">{t('books_n_books', noDatBooks.length)}</span>
                 </div>
               </div>
               {Object.entries(noDatByStand).sort(([a], [b]) => a.localeCompare(b)).map(([stand, standBooks]) => (
@@ -400,7 +408,7 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
                     <span className="stand-code">{stand}</span>
                     <span className="stand-name">{standBooks[0].feira_participante}</span>
                     {onShowOnMap && (
-                      <button className="btn-pin" onClick={() => onShowOnMap(stand)} title={`Ver no mapa — Stand ${stand}`}>📍</button>
+                      <button className="btn-pin" onClick={() => onShowOnMap(stand)} title={t('action_view_map', stand)}>📍</button>
                     )}
                   </div>
                   {standBooks.map(book => (
@@ -410,7 +418,7 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
                       onToggleWant={onToggleWant}
                       onToggleBought={onToggleBought}
                       onShowOnMap={onShowOnMap}
-                          />
+                    />
                   ))}
                 </div>
               ))}

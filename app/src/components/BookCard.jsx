@@ -1,3 +1,5 @@
+import { useLanguage } from '../LanguageContext'
+import { makeT } from '../i18n'
 import { ShelfBadge } from './ShelfBadge'
 
 function Stars({ rating }) {
@@ -34,6 +36,10 @@ function PriceBlock({ pvp, pvpFeira, pvpDia }) {
 }
 
 export function BookCard({ book, onToggleWant, onToggleBought, onShowOnMap }) {
+  const { lang } = useLanguage()
+  const t = makeT(lang)
+  const locale = t('date_locale')
+
   return (
     <div className={`book-card ${book.bought ? 'book-card--bought' : ''}`}>
       <img
@@ -63,7 +69,7 @@ export function BookCard({ book, onToggleWant, onToggleBought, onShowOnMap }) {
             <button
               className="btn-pin"
               onClick={() => onShowOnMap(book.feira_stand)}
-              title={`Ver no mapa — Stand ${book.feira_stand}`}
+              title={t('action_view_map', book.feira_stand)}
             >📍</button>
           )}
         </div>
@@ -76,7 +82,7 @@ export function BookCard({ book, onToggleWant, onToggleBought, onShowOnMap }) {
           <div className="book-card__dates">
             {book.discountDates.map(d => (
               <span key={d} className="date-chip">
-                {new Date(d + 'T00:00:00').toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' })}
+                {new Date(d + 'T00:00:00').toLocaleDateString(locale, { day: 'numeric', month: 'short' })}
               </span>
             ))}
           </div>
@@ -86,16 +92,16 @@ export function BookCard({ book, onToggleWant, onToggleBought, onShowOnMap }) {
         <button
           className={`btn-action btn-want ${book.wantToBuy ? 'active' : ''}`}
           onClick={() => onToggleWant(book.id)}
-          title={book.wantToBuy ? 'Remover da lista' : 'Para comprar'}
+          title={book.wantToBuy ? t('action_remove_list') : t('action_want')}
         >
-          {book.wantToBuy ? '♥ Quero' : '♡ Quero'}
+          {book.wantToBuy ? t('catalog_want') : t('catalog_want_not')}
         </button>
         <button
           className={`btn-action btn-bought ${book.bought ? 'active' : ''}`}
           onClick={() => onToggleBought(book.id)}
-          title={book.bought ? 'Marcar como não comprado' : 'Marcar como comprado'}
+          title={book.bought ? t('action_unbought') : t('action_bought')}
         >
-          {book.bought ? '✓ Comprado' : '○ Comprado'}
+          {book.bought ? `✓ ${t('books_filter_bought')}` : `○ ${t('books_filter_bought')}`}
         </button>
       </div>
     </div>
