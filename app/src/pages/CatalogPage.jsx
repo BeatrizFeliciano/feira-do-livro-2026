@@ -110,6 +110,7 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
       if (!byShelf[shelf]) byShelf[shelf] = []
       byShelf[shelf].push({
         isbn:             b.id,
+        gr_title:         b.gr_title,   // kept for stable React key when two GR entries share a fair ISBN
         titulo:           b.feira_titulo,
         autor:            b.feira_autor,
         stand:            b.feira_stand,
@@ -246,7 +247,7 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
     const inList   = manualIds.has(isbn)
     return (
       <CatalogCard
-        key={isbn || book.titulo}
+        key={`${isbn}-${book.gr_title || book.titulo}`}
         book={book}
         inList={inList}
         grShelfLabel={GR_SHELF_LABELS[book.gr_shelf]}

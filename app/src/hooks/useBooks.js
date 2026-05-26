@@ -156,7 +156,10 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
       const res = await fetch(proxyUrl, { signal })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       for (const book of parseShelfRSS(await res.text(), shelf)) {
-        const key = book.isbn13 || book.isbn || book.title
+        // Key on isbn+title so same GR edition on multiple shelves is deduplicated,
+        // but different editions with the same ISBN (e.g. "A Vegetariana" vs
+        // "The Vegetarian") are both kept.
+        const key = `${book.isbn13 || book.isbn || ''}\0${book.title || ''}`
         if (key && !seenGr.has(key)) { seenGr.add(key); allGrBooks.push(book) }
       }
     } catch (e) {
@@ -165,7 +168,7 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
     }
   }
 
-  const seenFaire = new Set()   // track matched faire ISBNs (no double-matching)
+  const seenFaire = new Set()   // Step 1 only: prevent same fair ISBN matching twice via ISBN lookup
   const matched   = []
 
   // ── Step 1: ISBN matching ──────────────────────────────
@@ -187,24 +190,11 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
     else afterStep1.push(gr)
   }
 
-  // ── Step 1.5: English title exact match ───────────────
-  // Catches GR books saved in English that map to a Portuguese translation at the fair.
-  const afterStep1b = []
-  for (const gr of afterStep1) {
-    const grTitleNorm = normalise(cleanTitle(gr.title))
-    const isbn = englishTitleIndex.get(grTitleNorm)
-    if (isbn && !seenFaire.has(isbn)) {
-      const fb = faireBooks[isbn]
-      console.log(`[step1b] "${gr.title}" → "${fb.titulo}" via english_title "${fb.english_title}"`)
-      seenFaire.add(isbn)
-      matched.push(createMatch(gr, isbn, fb))
-    } else {
-      afterStep1b.push(gr)
-    }
-  }
-
   // ── Step 2: Fuzzy title + author matching ─────────────
   // Exact port of match_by_fuzzy().
+  // Runs BEFORE the english_title step so that direct same-language matches
+  // (e.g. "A Vegetariana" GR → "A Vegetariana" fair) always take priority over
+  // cross-language matches ("The Vegetarian" GR → same fair book via english_title).
   // Pre-filter via title-word index to avoid O(n×m) full scan;
   // the index only misses pairs with zero shared words (handled by step 3).
   // MAX_WORD_FREQ: skip words that appear in too many books — they are stop-words
@@ -212,15 +202,15 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
   const MAX_WORD_FREQ = 150
   onProgress('A cruzar os teus livros com a feira — passo 2 de 3: título e autor…')
   await yieldToUI()
-  const afterStep2 = []
+  const afterStep2pre = []
 
-  for (let gi = 0; gi < afterStep1b.length; gi++) {
+  for (let gi = 0; gi < afterStep1.length; gi++) {
     // Yield to UI every 20 books so the progress message stays live
     if (gi > 0 && gi % 20 === 0) {
-      onProgress(`A cruzar os teus livros com a feira — passo 2 de 3: título e autor… (${gi}/${afterStep1b.length})`)
+      onProgress(`A cruzar os teus livros com a feira — passo 2 de 3: título e autor… (${gi}/${afterStep1.length})`)
       await yieldToUI()
     }
-    const gr = afterStep1b[gi]
+    const gr = afterStep1[gi]
     // Candidates: faire books sharing ≥1 title word (len≥3) OR author word (len≥2)
     // Skip words that appear in more than MAX_WORD_FREQ books — they are too common
     // to be discriminating (e.g. "de", "the", "dos") and explode the candidate set.
@@ -232,9 +222,7 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
     for (const word of grWords) {
       const hits = titleAuthorWordIndex.get(word) || []
       if (hits.length > MAX_WORD_FREQ) continue   // stop-word: skip
-      for (const isbn of hits) {
-        if (!seenFaire.has(isbn)) candidateIsbns.add(isbn)
-      }
+      for (const isbn of hits) candidateIsbns.add(isbn)
     }
 
     let bestScore = 0, bestFb = null
@@ -245,8 +233,25 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
 
     if (bestScore >= FUZZY_THRESHOLD && bestFb) {
       console.log(`[step2] "${gr.title}" → "${bestFb.titulo}" (score ${bestScore.toFixed(1)})`)
-      seenFaire.add(bestFb.isbn)
       matched.push(createMatch(gr, bestFb.isbn, bestFb))
+    } else {
+      afterStep2pre.push(gr)
+    }
+  }
+
+  // ── Step 2.5: English title exact match ───────────────
+  // Catches GR books saved in English whose Portuguese fair translation wasn't
+  // found by fuzzy matching. Runs AFTER Step 2 so that direct same-language
+  // matches (e.g. "A Vegetariana" GR) always take priority over cross-language
+  // ones ("The Vegetarian" GR) for the same fair book.
+  const afterStep2 = []
+  for (const gr of afterStep2pre) {
+    const grTitleNorm = normalise(cleanTitle(gr.title))
+    const isbn = englishTitleIndex.get(grTitleNorm)
+    if (isbn) {
+      const fb = faireBooks[isbn]
+      console.log(`[step2b] "${gr.title}" → "${fb.titulo}" via english_title "${fb.english_title}"`)
+      matched.push(createMatch(gr, isbn, fb))
     } else {
       afterStep2.push(gr)
     }
@@ -268,9 +273,7 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
 
     const candidateIsbns = new Set()
     for (const w of grAuthorWords) {
-      for (const fb of (authorWordIndex.get(w) || [])) {
-        if (!seenFaire.has(fb.isbn)) candidateIsbns.add(fb.isbn)
-      }
+      for (const fb of (authorWordIndex.get(w) || [])) candidateIsbns.add(fb.isbn)
     }
 
     const candidates = [...candidateIsbns]
@@ -292,9 +295,8 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
     else if (n <= 3)   accept = bestScore >= 55
     else               accept = bestScore >= 65
 
-    if (accept && bestFb && !seenFaire.has(bestFb.isbn)) {
+    if (accept && bestFb) {
       console.log(`[step3] "${gr.title}" → "${bestFb.titulo}" (n=${n}, score ${bestScore.toFixed(1)})`)
-      seenFaire.add(bestFb.isbn)
       matched.push(createMatch(gr, bestFb.isbn, bestFb))
     }
   }
