@@ -484,6 +484,7 @@
 }
 .shelf-tabs--gr {
   align-items: center;
+  flex-basis: 100%;   /* always own row — prevents layout shift when counts change */
 }
 .shelf-tabs__label {
   font-size: 0.75rem;
