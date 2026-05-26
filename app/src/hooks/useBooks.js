@@ -134,6 +134,15 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
   const titleAuthorWordIndex = buildTitleAuthorWordIndex(faireBooks)
   const authorWordIndex      = buildAuthorWordIndex(faireBooks)
 
+  // English title index: normalised english_title → isbn (for step 1.5)
+  const englishTitleIndex = new Map()
+  for (const [isbn, book] of Object.entries(faireBooks)) {
+    if (book.english_title) {
+      const key = normalise(book.english_title)
+      if (!englishTitleIndex.has(key)) englishTitleIndex.set(key, isbn)
+    }
+  }
+
   // ── Fetch all Goodreads shelves ────────────────────────
   const allGrBooks = []
   const seenGr = new Set()   // deduplicate books appearing in multiple shelves
@@ -161,7 +170,7 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
 
   // ── Step 1: ISBN matching ──────────────────────────────
   // Exact port of match_by_isbn(): try gr_isbn13 then gr_isbn, also the last-10 digits
-  onProgress('A cruzar os teus livros com a feira — passo 1 de 3: ISBN…')
+  onProgress('A cruzar os teus livros com a feira — passo 1 de 3: ISBN e título em inglês…')
   await yieldToUI()
   const afterStep1 = []
 
@@ -178,6 +187,22 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
     else afterStep1.push(gr)
   }
 
+  // ── Step 1.5: English title exact match ───────────────
+  // Catches GR books saved in English that map to a Portuguese translation at the fair.
+  const afterStep1b = []
+  for (const gr of afterStep1) {
+    const grTitleNorm = normalise(cleanTitle(gr.title))
+    const isbn = englishTitleIndex.get(grTitleNorm)
+    if (isbn && !seenFaire.has(isbn)) {
+      const fb = faireBooks[isbn]
+      console.log(`[step1b] "${gr.title}" → "${fb.titulo}" via english_title "${fb.english_title}"`)
+      seenFaire.add(isbn)
+      matched.push(createMatch(gr, isbn, fb))
+    } else {
+      afterStep1b.push(gr)
+    }
+  }
+
   // ── Step 2: Fuzzy title + author matching ─────────────
   // Exact port of match_by_fuzzy().
   // Pre-filter via title-word index to avoid O(n×m) full scan;
@@ -189,13 +214,13 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
   await yieldToUI()
   const afterStep2 = []
 
-  for (let gi = 0; gi < afterStep1.length; gi++) {
+  for (let gi = 0; gi < afterStep1b.length; gi++) {
     // Yield to UI every 20 books so the progress message stays live
     if (gi > 0 && gi % 20 === 0) {
-      onProgress(`A cruzar os teus livros com a feira — passo 2 de 3: título e autor… (${gi}/${afterStep1.length})`)
+      onProgress(`A cruzar os teus livros com a feira — passo 2 de 3: título e autor… (${gi}/${afterStep1b.length})`)
       await yieldToUI()
     }
-    const gr = afterStep1[gi]
+    const gr = afterStep1b[gi]
     // Candidates: faire books sharing ≥1 title word (len≥3) OR author word (len≥2)
     // Skip words that appear in more than MAX_WORD_FREQ books — they are too common
     // to be discriminating (e.g. "de", "the", "dos") and explode the candidate set.
@@ -263,7 +288,7 @@ async function fetchAndMatch(userId, faireBooks, onProgress, signal) {
 
     const n = candidates.length
     let accept = false
-    if      (n === 1)  accept = bestScore >= 20   // single candidate: low bar (possible translated title)
+    if      (n === 1)  accept = bestScore >= 55   // raised: n=1 alone is no longer enough to match
     else if (n <= 3)   accept = bestScore >= 55
     else               accept = bestScore >= 65
 
