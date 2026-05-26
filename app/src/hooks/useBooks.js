@@ -291,8 +291,10 @@ function saveManualBooks(obj) { localStorage.setItem(LS_MANUAL_KEY, JSON.stringi
 
 function extractUserId(input) {
   const trimmed = input.trim()
-  const match = trimmed.match(/\/user\/show\/(\d+)/)
-  if (match) return match[1]
+  const userMatch = trimmed.match(/\/user\/show\/(\d+)/)
+  if (userMatch) return userMatch[1]
+  const authorMatch = trimmed.match(/\/author\/show\/(\d+)/)
+  if (authorMatch) return authorMatch[1]
   if (/^\d+$/.test(trimmed)) return trimmed
   return null
 }
@@ -407,8 +409,35 @@ export function useBooks() {
   const removeManual = removeBook
 
   function setUser(input) {
-    const id = extractUserId(input)
+    const trimmed = input.trim()
+    const id = extractUserId(trimmed)
     if (!id) { setError('URL inválido. Copia o URL do teu perfil do Goodreads.'); return false }
+
+    const isAuthorUrl = /\/author\/show\/\d+/.test(trimmed)
+    if (isAuthorUrl) {
+      // Try to resolve the author page to find the real user ID
+      setError(null); setRawBooks(null)
+      setLoadingMessage('A identificar o teu perfil de leitor…')
+      setFetching(true)
+      const authorPageUrl = `https://www.goodreads.com/author/show/${id}`
+      fetch(`${WORKER_URL}?url=${encodeURIComponent(authorPageUrl)}`)
+        .then(r => r.text())
+        .then(html => {
+          const match = html.match(/\/user\/show\/(\d+)/)
+          const resolvedId = match ? match[1] : id
+          localStorage.setItem(LS_USER_KEY, resolvedId)
+          localStorage.removeItem(LS_CACHE_KEY)
+          setUserId(resolvedId); setFetching(false)
+        })
+        .catch(() => {
+          // Fall back to author ID and let the matching try its luck
+          localStorage.setItem(LS_USER_KEY, id)
+          localStorage.removeItem(LS_CACHE_KEY)
+          setUserId(id); setFetching(false)
+        })
+      return true
+    }
+
     localStorage.setItem(LS_USER_KEY, id)
     localStorage.removeItem(LS_CACHE_KEY)
     setUserId(id); setRawBooks(null); setError(null)
