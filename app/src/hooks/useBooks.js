@@ -496,7 +496,8 @@ export function useBooks() {
   return {
     books,
     manualBooks,
-    grBooks: rawBooks || [],   // GR-matched books for Catálogo shelf tabs
+    grBooks:    rawBooks || [],      // GR-matched books for Catálogo shelf tabs
+    faireBooks: allFeireBooks,       // full fair catalog (null until loaded, GR users only)
     loading:        fetching || (!!userId && rawBooks === null && !error),
     loadingMessage,
     needsOnboarding: !userId,

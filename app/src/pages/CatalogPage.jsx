@@ -78,7 +78,7 @@ function CatalogCard({ book, inList, grShelfLabel, onAdd, onRemove }) {
   )
 }
 
-export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAdd, onRemove, onConnectGoodreads }) {
+export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnboarding, onAdd, onRemove, onConnectGoodreads }) {
   const [inputVal, setInputVal]     = useState('')
   const [catalogFilter, setCatalogFilter] = useState('all')   // 'all' | 'ldd'
   const [grFilter, setGrFilter]           = useState(null)    // null | 'goodreads-all' | shelf key
@@ -93,6 +93,44 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
 
   const isApiMode = grFilter === null   // no GR filter → fetch from API
   const isGrMode  = !isApiMode
+
+  // Local search mode: when all_feira_books.json is loaded AND there's a query in
+  // API mode, search client-side so publisher names (participante) are searchable.
+  // The feira's external API only searches title+author; it misses publisher lookups.
+  const isLocalSearchMode = !!faireBooks && !!query.trim() && isApiMode
+
+  // All local results for the current query (no catalogFilter — used for pill counts)
+  const localSearchBase = useMemo(() => {
+    if (!isLocalSearchMode) return []
+    const q = query.toLowerCase()
+    return Object.entries(faireBooks)
+      .filter(([, b]) =>
+        (b.titulo       || '').toLowerCase().includes(q) ||
+        (b.autor        || '').toLowerCase().includes(q) ||
+        (b.participante || '').toLowerCase().includes(q)
+      )
+      .map(([isbn, b]) => ({
+        isbn,
+        titulo:            b.titulo,
+        autor:             b.autor,
+        participante_name: b.participante,
+        stand:             b.stand,
+        pvp:               b.pvp,
+        pvp_feira:         b.pvp_feira,
+        pvp_livro_do_dia:  b.pvp_livro_do_dia || null,
+        livro_do_dia_datas: b.datas || [],
+        cover_jpg:         b.cover || '',
+      }))
+      .sort((a, b) => (a.titulo || '').localeCompare(b.titulo || '', 'pt'))
+  }, [isLocalSearchMode, faireBooks, query])
+
+  // Local results after applying catalogFilter (what actually gets rendered)
+  const localSearchResults = useMemo(() => {
+    if (!isLocalSearchMode) return []
+    return catalogFilter === 'ldd'
+      ? localSearchBase.filter(b => Boolean(b.pvp_livro_do_dia))
+      : localSearchBase
+  }, [isLocalSearchMode, localSearchBase, catalogFilter])
 
   // ISBN → gr_shelf for all GR-matched books
   const grIsbnToShelf = useMemo(() => {
@@ -140,8 +178,9 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
     if (!query.trim()) return all
     const q = query.toLowerCase()
     return all.filter(b =>
-      (b.titulo || '').toLowerCase().includes(q) ||
-      (b.autor  || '').toLowerCase().includes(q)
+      (b.titulo             || '').toLowerCase().includes(q) ||
+      (b.autor              || '').toLowerCase().includes(q) ||
+      (b.participante_name  || '').toLowerCase().includes(q)
     )
   }, [isGrMode, grBooksByShelf, grFilter, catalogFilter, query])
 
@@ -191,7 +230,13 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
       })
       .catch(e => {
         if (cancelled || e.name === 'AbortError') return
-        setFetchError('Não foi possível carregar o catálogo.')
+        // If a search query is active, the API sometimes returns a non-2xx for
+        // zero results — treat it as an empty result set, not a load failure.
+        if (query.trim()) {
+          setResults([]); setHasMore(false)
+        } else {
+          setFetchError('Não foi possível carregar o catálogo.')
+        }
         setFetching(false)
         fetchingRef.current = false
       })
@@ -280,9 +325,13 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
       : (grBooksByShelf[grFilter] || [])
   }, [isGrMode, grFilter, grBooksByShelf])
 
-  // Catalog pill counts — reflect active GR filter when in GR mode
-  const countAll = isGrMode ? grFilteredBase.length                                          : TOTAL_ALL_BOOKS
-  const countLdd = isGrMode ? grFilteredBase.filter(b => Boolean(b.pvp_livro_do_dia)).length : TOTAL_LDD_BOOKS
+  // Catalog pill counts — reflect active GR filter, local search results, or static totals
+  const countAll = isGrMode          ? grFilteredBase.length
+                 : isLocalSearchMode ? localSearchBase.length
+                 : TOTAL_ALL_BOOKS
+  const countLdd = isGrMode          ? grFilteredBase.filter(b => Boolean(b.pvp_livro_do_dia)).length
+                 : isLocalSearchMode ? localSearchBase.filter(b => Boolean(b.pvp_livro_do_dia)).length
+                 : TOTAL_LDD_BOOKS
 
   // GR pill counts — reflect active catalog filter
   const grCount = (books) => catalogFilter === 'ldd' ? books.filter(b => Boolean(b.pvp_livro_do_dia)).length : books.length
@@ -340,8 +389,21 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
       {/* ── GR shelf view (client-side) ─────────── */}
       {isGrMode ? (
         grShelfBooks.length === 0
-          ? <p className="catalog-count">Nenhum livro encontrado.</p>
+          ? <p className="catalog-count">
+              {query.trim()
+                ? `Sem resultados para "${query.trim()}".`
+                : 'Nenhum livro encontrado.'}
+            </p>
           : <div className="book-list">{grShelfBooks.map(renderGrCard)}</div>
+
+      ) : isLocalSearchMode ? (
+        /* ── Local search (title + author + publisher, client-side) ── */
+        <>
+          {localSearchResults.length === 0
+            ? <p className="catalog-count">Sem resultados para &ldquo;{query.trim()}&rdquo;.</p>
+            : <div className="book-list">{localSearchResults.map(renderApiCard)}</div>
+          }
+        </>
 
       ) : (
         /* ── API view (Todos / Livros do Dia) ────── */
@@ -350,7 +412,11 @@ export function CatalogPage({ manualBooks, books, grBooks, needsOnboarding, onAd
         ) : (
           <>
             {results.length === 0 && !fetching && (
-              <p className="catalog-count">Nenhum livro encontrado.</p>
+              <p className="catalog-count">
+                {query.trim()
+                  ? `Sem resultados para "${query.trim()}".`
+                  : 'Nenhum livro encontrado.'}
+              </p>
             )}
             <div className="book-list">{results.map(renderApiCard)}</div>
             {hasMore && (

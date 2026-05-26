@@ -191,15 +191,32 @@ export function MapPage({ books, onToggleWant, onToggleBought, openStand, onStan
     setPopupPos({ top: best.cssBottom != null ? 'auto' : best.t, bottom: best.cssBottom ?? 'auto', left: best.l })
   }
 
-  // Open programmatically (pin button auto-open): derive anchor from img rect.
+  // Open programmatically (pin button auto-open): scroll the marker into the
+  // visible area first, then read its bounding rect — identical to a real tap.
+  // Without the scroll step, a pin that is off-screen (the map image can be
+  // wider/taller than the viewport on mobile) gets clamped by placePopup and
+  // the popup appears far from the actual pin.
   const openPopupForStand = useCallback((code) => {
-    if (!coords || !coords[code] || !imgRef.current) return
-    const pos     = coords[code]
-    const iRect   = imgRef.current.getBoundingClientRect()
-    const anchorX = iRect.left + (pos.x / SVG_W) * iRect.width
-    const anchorY = iRect.top  + (pos.y / SVG_H) * iRect.height
-    placePopup(anchorX, anchorY)
-    setSelectedStand(code)
+    if (!coords || !coords[code]) return
+    const markerEl = containerRef.current?.querySelector(`[data-stand="${code}"]`)
+    if (markerEl) {
+      markerEl.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'center' })
+      // Wait one frame so the scroll has committed before reading the rect.
+      requestAnimationFrame(() => {
+        const r = markerEl.getBoundingClientRect()
+        placePopup(r.left + r.width / 2, r.top + r.height / 2)
+        setSelectedStand(code)
+      })
+    } else if (imgRef.current) {
+      // Fallback: compute from image rect (no marker element found yet)
+      const pos   = coords[code]
+      const iRect = imgRef.current.getBoundingClientRect()
+      placePopup(
+        iRect.left + (pos.x / SVG_W) * iRect.width,
+        iRect.top  + (pos.y / SVG_H) * iRect.height,
+      )
+      setSelectedStand(code)
+    }
   }, [coords])
 
   function handleMarkerClick(code, e) {
@@ -315,6 +332,7 @@ export function MapPage({ books, onToggleWant, onToggleBought, openStand, onStan
                 return (
                   <button
                     key={code}
+                    data-stand={code}
                     className={[
                       'map-marker',
                       effectiveCls !== 'none' ? `map-marker--${effectiveCls}` : '',

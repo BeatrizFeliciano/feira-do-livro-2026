@@ -104,7 +104,7 @@ export default function App() {
   const [openStand, setOpenStand] = useState(null)
   const [notification, setNotification] = useState(null) // { type: 'error'|'warning', message }
   const {
-    books, manualBooks, grBooks, loading, loadingMessage, needsOnboarding, error,
+    books, manualBooks, grBooks, faireBooks, loading, loadingMessage, needsOnboarding, error,
     setUser, clearUser, refresh, toggleWant, toggleBought, addManual, removeManual,
   } = useBooks()
 
@@ -222,7 +222,7 @@ export default function App() {
             onNavigateToCatalog={() => navigate('catalog')}
           />
         ) : tab === 'catalog' ? (
-          <CatalogPage manualBooks={manualBooks} books={books} grBooks={grBooks} needsOnboarding={needsOnboarding} onAdd={addManual} onRemove={removeManual} onConnectGoodreads={() => navigate('about')} />
+          <CatalogPage manualBooks={manualBooks} books={books} grBooks={grBooks} faireBooks={faireBooks} needsOnboarding={needsOnboarding} onAdd={addManual} onRemove={removeManual} onConnectGoodreads={() => navigate('about')} />
         ) : (
           <MapPage books={books} onToggleWant={toggleWant} onToggleBought={toggleBought} openStand={openStand} onStandOpened={() => setOpenStand(null)} />
         )}
