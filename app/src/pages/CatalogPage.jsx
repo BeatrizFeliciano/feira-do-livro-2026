@@ -244,6 +244,13 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
     }
   }, [grBooks.length])
 
+  // "Por dia" only makes sense when all books are in memory.
+  // Drop back to list view when the user enters pure API mode.
+  const canShowDayView = isGrMode || isLocalSearchMode
+  useEffect(() => {
+    if (!canShowDayView && viewMode === 'days') setViewMode('list')
+  }, [canShowDayView])
+
   // Reset active day when filters/query change
   useEffect(() => { setActiveDay(null) }, [grFilter, catalogFilter, query])
 
@@ -412,16 +419,18 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
           onChange={e => setInputVal(e.target.value)}
           autoFocus
         />
-        <div className="view-toggle">
-          <button
-            className={`view-toggle__btn ${viewMode === 'list' ? 'active' : ''}`}
-            onClick={() => setViewMode('list')}
-          >{t('books_view_list')}</button>
-          <button
-            className={`view-toggle__btn ${viewMode === 'days' ? 'active' : ''}`}
-            onClick={() => setViewMode('days')}
-          >{t('books_view_days')}</button>
-        </div>
+        {canShowDayView && (
+          <div className="view-toggle">
+            <button
+              className={`view-toggle__btn ${viewMode === 'list' ? 'active' : ''}`}
+              onClick={() => setViewMode('list')}
+            >{t('books_view_list')}</button>
+            <button
+              className={`view-toggle__btn ${viewMode === 'days' ? 'active' : ''}`}
+              onClick={() => setViewMode('days')}
+            >{t('books_view_days')}</button>
+          </div>
+        )}
       </div>
 
       {needsOnboarding && onConnectGoodreads && (
