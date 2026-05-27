@@ -112,6 +112,7 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
   const [inputVal, setInputVal]           = useState('')
   const [catalogFilter, setCatalogFilter] = useState('all')   // 'all' | 'ldd'
   const [grFilter, setGrFilter]           = useState(null)    // null | 'goodreads-all' | shelf key
+  const grAutoSelectedRef = useRef(false)
   const [viewMode, setViewMode]           = useState('list')  // 'list' | 'days'
   const [activeDay, setActiveDay]         = useState(null)
   const [offset, setOffset]               = useState(0)
@@ -234,6 +235,14 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
       return { date, booksOnDay, byStand: groupByStand(booksOnDay) }
     }).filter(s => s.booksOnDay.length > 0)
   }, [currentBooksForDayView, allDays, activeDay])
+
+  // Auto-select "Goodreads — Todos" the first time GR books arrive
+  useEffect(() => {
+    if (!grAutoSelectedRef.current && grBooks.length > 0) {
+      grAutoSelectedRef.current = true
+      setGrFilter('goodreads-all')
+    }
+  }, [grBooks.length])
 
   // Reset active day when filters/query change
   useEffect(() => { setActiveDay(null) }, [grFilter, catalogFilter, query])
