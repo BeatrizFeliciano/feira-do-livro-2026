@@ -19,6 +19,27 @@ const GR_SHELF_I18N = {
 }
 const GR_SHELF_ORDER = ['to-read', 'currently-reading', 'read', 'did-not-finish']
 
+function formatDate(dateStr, locale) {
+  const d = new Date(dateStr + 'T00:00:00')
+  const s = d.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function formatDateShort(dateStr, locale) {
+  const d = new Date(dateStr + 'T00:00:00')
+  return d.toLocaleDateString(locale, { day: 'numeric', month: 'short' })
+}
+
+function groupByStand(books) {
+  const byStand = {}
+  for (const b of books) {
+    const key = b.stand || '?'
+    if (!byStand[key]) byStand[key] = []
+    byStand[key].push(b)
+  }
+  return byStand
+}
+
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = useState(value)
   useEffect(() => {
@@ -86,15 +107,18 @@ function CatalogCard({ book, inList, grShelfLabel, onAdd, onRemove }) {
 export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnboarding, onAdd, onRemove, onConnectGoodreads }) {
   const { lang } = useLanguage()
   const t = makeT(lang)
+  const locale = t('date_locale')
 
-  const [inputVal, setInputVal]     = useState('')
+  const [inputVal, setInputVal]           = useState('')
   const [catalogFilter, setCatalogFilter] = useState('all')   // 'all' | 'ldd'
   const [grFilter, setGrFilter]           = useState(null)    // null | 'goodreads-all' | shelf key
-  const [offset, setOffset]         = useState(0)
-  const [results, setResults]       = useState([])
-  const [hasMore, setHasMore]       = useState(true)
-  const [fetching, setFetching]     = useState(false)
-  const [fetchError, setFetchError] = useState(null)
+  const [viewMode, setViewMode]           = useState('list')  // 'list' | 'days'
+  const [activeDay, setActiveDay]         = useState(null)
+  const [offset, setOffset]               = useState(0)
+  const [results, setResults]             = useState([])
+  const [hasMore, setHasMore]             = useState(true)
+  const [fetching, setFetching]           = useState(false)
+  const [fetchError, setFetchError]       = useState(null)
   const query       = useDebounce(inputVal, 300)
   const sentinelRef = useRef(null)
   const fetchingRef = useRef(false)
@@ -104,7 +128,6 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
 
   // Local search mode: when all_feira_books.json is loaded AND there's a query in
   // API mode, search client-side so publisher names (participante) are searchable.
-  // The feira's external API only searches title+author; it misses publisher lookups.
   const isLocalSearchMode = !!faireBooks && !!query.trim() && isApiMode
 
   // All local results for the current query (no catalogFilter — used for pill counts)
@@ -156,7 +179,7 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
       if (!byShelf[shelf]) byShelf[shelf] = []
       byShelf[shelf].push({
         isbn:             b.id,
-        gr_title:         b.gr_title,   // kept for stable React key when two GR entries share a fair ISBN
+        gr_title:         b.gr_title,
         titulo:           b.feira_titulo,
         autor:            b.feira_autor,
         stand:            b.feira_stand,
@@ -191,6 +214,29 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
       (b.participante_name  || '').toLowerCase().includes(q)
     )
   }, [isGrMode, grBooksByShelf, grFilter, catalogFilter, query])
+
+  // ── Day view helpers ───────────────────────────────────
+  // The "current" flat list of books driving the day view depends on the mode.
+  const currentBooksForDayView = isGrMode ? grShelfBooks
+    : isLocalSearchMode ? localSearchResults
+    : results
+
+  const allDays = useMemo(() => {
+    const set = new Set()
+    currentBooksForDayView.forEach(b => (b.livro_do_dia_datas || []).forEach(d => set.add(d)))
+    return [...set].sort()
+  }, [currentBooksForDayView])
+
+  const daySections = useMemo(() => {
+    const datesToShow = activeDay ? [activeDay] : allDays
+    return datesToShow.map(date => {
+      const booksOnDay = currentBooksForDayView.filter(b => (b.livro_do_dia_datas || []).includes(date))
+      return { date, booksOnDay, byStand: groupByStand(booksOnDay) }
+    }).filter(s => s.booksOnDay.length > 0)
+  }, [currentBooksForDayView, allDays, activeDay])
+
+  // Reset active day when filters/query change
+  useEffect(() => { setActiveDay(null) }, [grFilter, catalogFilter, query])
 
   // Reset API list when catalogFilter, grFilter, or query changes
   useEffect(() => {
@@ -238,8 +284,6 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
       })
       .catch(e => {
         if (cancelled || e.name === 'AbortError') return
-        // If a search query is active, the API sometimes returns a non-2xx for
-        // zero results — treat it as an empty result set, not a load failure.
         if (query.trim()) {
           setResults([]); setHasMore(false)
         } else {
@@ -252,9 +296,9 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
     return () => { cancelled = true; fetchingRef.current = false; controller.abort() }
   }, [query, catalogFilter, offset, isApiMode])
 
-  // IntersectionObserver for infinite scroll (API modes only)
+  // IntersectionObserver for infinite scroll (API list mode only)
   useEffect(() => {
-    if (!isApiMode) return
+    if (!isApiMode || viewMode !== 'list') return
     const sentinel = sentinelRef.current
     if (!sentinel) return
     const observer = new IntersectionObserver(
@@ -263,7 +307,7 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
     )
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [isApiMode, hasMore, results.length])
+  }, [isApiMode, hasMore, results.length, viewMode])
 
   function renderApiCard(book) {
     const isbn         = normaliseIsbn(book.isbn)
@@ -323,6 +367,9 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
     )
   }
 
+  // Render a card in the correct format for the current mode
+  const renderCard = (book) => isGrMode ? renderGrCard(book) : renderApiCard(book)
+
   // Which GR shelves actually have books
   const availableGrShelves = GR_SHELF_ORDER.filter(s => (grBooksByShelf[s] || []).length > 0)
 
@@ -334,7 +381,7 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
       : (grBooksByShelf[grFilter] || [])
   }, [isGrMode, grFilter, grBooksByShelf])
 
-  // Catalog pill counts — reflect active GR filter, local search results, or static totals
+  // Catalog pill counts
   const countAll = isGrMode          ? grFilteredBase.length
                  : isLocalSearchMode ? localSearchBase.length
                  : TOTAL_ALL_BOOKS
@@ -342,19 +389,31 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
                  : isLocalSearchMode ? localSearchBase.filter(b => Boolean(b.pvp_livro_do_dia)).length
                  : TOTAL_LDD_BOOKS
 
-  // GR pill counts — reflect active catalog filter
   const grCount = (bks) => catalogFilter === 'ldd' ? bks.filter(b => Boolean(b.pvp_livro_do_dia)).length : bks.length
 
   return (
     <div className="page">
-      <input
-        className="search-bar"
-        type="search"
-        placeholder={t('catalog_search_ph')}
-        value={inputVal}
-        onChange={e => setInputVal(e.target.value)}
-        autoFocus
-      />
+      {/* Row 1: search bar + view toggle */}
+      <div className="books-top-row">
+        <input
+          className="search-bar search-bar--inline"
+          type="search"
+          placeholder={t('catalog_search_ph')}
+          value={inputVal}
+          onChange={e => setInputVal(e.target.value)}
+          autoFocus
+        />
+        <div className="view-toggle">
+          <button
+            className={`view-toggle__btn ${viewMode === 'list' ? 'active' : ''}`}
+            onClick={() => setViewMode('list')}
+          >{t('books_view_list')}</button>
+          <button
+            className={`view-toggle__btn ${viewMode === 'days' ? 'active' : ''}`}
+            onClick={() => setViewMode('days')}
+          >{t('books_view_days')}</button>
+        </div>
+      </div>
 
       {needsOnboarding && onConnectGoodreads && (
         <button className="catalog-gr-prompt" onClick={onConnectGoodreads}>
@@ -362,6 +421,7 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
         </button>
       )}
 
+      {/* Row 2: catalog filter tabs + optional day selector */}
       <div className="catalog-filter-row">
         <div className="shelf-tabs shelf-tabs--catalog">
           <button className={`shelf-tab ${catalogFilter === 'all' ? 'active' : ''}`} onClick={() => setCatalogFilter('all')}>
@@ -371,6 +431,19 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
             {t('catalog_ldd')} <span className="shelf-tab__count">{fmtCount(countLdd)}</span>
           </button>
         </div>
+
+        {viewMode === 'days' && allDays.length > 0 && (
+          <select
+            className="map-day-select map-day-select--inline"
+            value={activeDay || ''}
+            onChange={e => setActiveDay(e.target.value || null)}
+          >
+            <option value="">{t('books_all_days')}</option>
+            {allDays.map(day => (
+              <option key={day} value={day}>{formatDateShort(day, locale)}</option>
+            ))}
+          </select>
+        )}
 
         {availableGrShelves.length > 0 && (
           <div className="shelf-tabs shelf-tabs--gr">
@@ -395,18 +468,50 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
         )}
       </div>
 
-      {/* ── GR shelf view (client-side) ─────────── */}
-      {isGrMode ? (
+      {/* ── Day-grouped view ───────────────────────────────── */}
+      {viewMode === 'days' ? (
+        daySections.length === 0 ? (
+          <p className="empty-state">
+            {activeDay
+              ? t('catalog_no_results', formatDate(activeDay, locale))
+              : t('catalog_empty')}
+          </p>
+        ) : (
+          <>
+            {daySections.map(({ date, booksOnDay, byStand }) => (
+              <div key={date} className="day-section">
+                <div className="day-section__header">
+                  <div className="day-section__title">
+                    <span>{formatDate(date, locale)}</span>
+                  </div>
+                  <div className="day-section__counts">
+                    <span className="count-badge">{t('books_n_books', booksOnDay.length)}</span>
+                  </div>
+                </div>
+                {Object.entries(byStand).sort(([a], [b]) => a.localeCompare(b)).map(([stand, standBooks]) => (
+                  <div key={stand} className="stand-group">
+                    <div className="stand-group__header">
+                      <span className="stand-code">{stand}</span>
+                      <span className="stand-name">{standBooks[0].participante_name}</span>
+                    </div>
+                    <div className="book-list">{standBooks.map(renderCard)}</div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </>
+        )
+
+      ) : isGrMode ? (
+        /* ── GR shelf list view ─────────── */
         grShelfBooks.length === 0
           ? <p className="catalog-count">
-              {query.trim()
-                ? t('catalog_no_results', query.trim())
-                : t('catalog_empty')}
+              {query.trim() ? t('catalog_no_results', query.trim()) : t('catalog_empty')}
             </p>
           : <div className="book-list">{grShelfBooks.map(renderGrCard)}</div>
 
       ) : isLocalSearchMode ? (
-        /* ── Local search (title + author + publisher, client-side) ── */
+        /* ── Local search list view ── */
         <>
           {localSearchResults.length === 0
             ? <p className="catalog-count">{t('catalog_no_results', query.trim())}</p>
@@ -415,16 +520,14 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
         </>
 
       ) : (
-        /* ── API view (Todos / Livros do Dia) ────── */
+        /* ── API list view ────── */
         fetchError ? (
           <p className="empty-state">{t(fetchError)}</p>
         ) : (
           <>
             {results.length === 0 && !fetching && (
               <p className="catalog-count">
-                {query.trim()
-                  ? t('catalog_no_results', query.trim())
-                  : t('catalog_empty')}
+                {query.trim() ? t('catalog_no_results', query.trim()) : t('catalog_empty')}
               </p>
             )}
             <div className="book-list">{results.map(renderApiCard)}</div>
