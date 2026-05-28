@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import * as fuzz from 'fuzzball'
 
 import { WORKER_URL } from '../constants'
@@ -343,27 +343,53 @@ export function useBooks() {
   const [manualBooks, setManualBooks]       = useState(loadManualBooks)
   const [userId, setUserId]                 = useState(() => localStorage.getItem(LS_USER_KEY))
   const [fetching, setFetching]             = useState(false)
+  const [faireLoading, setFaireLoading]     = useState(false)
   const [loadingMessage, setLoadingMessage] = useState('')
   const [error, setError]                   = useState(null)
+
+  // Prevents double-loading all_feira_books.json regardless of trigger source
+  const faireLoadStartedRef = useRef(false)
 
   // Lazy-load all_feira_books.json — only needed when a GR user is set
   useEffect(() => {
     if (!userId) return
+    if (faireLoadStartedRef.current) return  // already loading/loaded (e.g. via loadFaireBooks)
+    faireLoadStartedRef.current = true
+    setFaireLoading(true)
     setLoadingMessage(makeT(langRef.current)('loading_catalog'))
     fetch(import.meta.env.BASE_URL + 'all_feira_books.json')
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json()
       })
-      .then(setAllFeireBooks)
+      .then(data => { setAllFeireBooks(data); setFaireLoading(false) })
       .catch(err => {
         // File not yet generated or temporarily unavailable.
         // Don't block the whole app — fall back to no GR matches so manual
         // books and the Catálogo tab keep working.
         console.warn('Could not load all_feira_books.json:', err.message)
+        setFaireLoading(false)
         setRawBooks([])   // clears the loading state; manualBooksArr still works
       })
   }, [userId])
+
+  // Demand-driven load for non-GR users who switch to the day view in the catalog.
+  // Idempotent: noop if already loading or loaded.
+  const loadFaireBooks = useCallback(() => {
+    if (faireLoadStartedRef.current) return
+    faireLoadStartedRef.current = true
+    setFaireLoading(true)
+    fetch(import.meta.env.BASE_URL + 'all_feira_books.json')
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
+      .then(data => { setAllFeireBooks(data); setFaireLoading(false) })
+      .catch(err => {
+        console.warn('Could not load all_feira_books.json:', err.message)
+        setFaireLoading(false)
+      })
+  }, [])
 
   useEffect(() => {
     if (!userId) return
@@ -506,7 +532,9 @@ export function useBooks() {
     books,
     manualBooks,
     grBooks:    rawBooks || [],      // GR-matched books for Catálogo shelf tabs
-    faireBooks: allFeireBooks,       // full fair catalog (null until loaded, GR users only)
+    faireBooks: allFeireBooks,       // full fair catalog (null until loaded)
+    faireLoading,                    // true while all_feira_books.json is being fetched
+    loadFaireBooks,                  // demand-load trigger (noop if already loaded/loading)
     loading:        fetching || (!!userId && rawBooks === null && !error),
     loadingMessage,
     needsOnboarding: !userId,

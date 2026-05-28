@@ -4,6 +4,7 @@ import { useLanguage } from '../LanguageContext'
 import { makeT } from '../i18n'
 
 const LIMIT = 50
+const PAGE_SIZE = 50  // per-section infinite scroll page size
 const TOTAL_ALL_BOOKS = 45234
 const TOTAL_LDD_BOOKS = 5809
 
@@ -104,7 +105,71 @@ function CatalogCard({ book, inList, grShelfLabel, onAdd, onRemove }) {
   )
 }
 
-export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnboarding, onAdd, onRemove, onConnectGoodreads }) {
+// ── Per-date section with its own independent infinite scroll ─────────────────
+// Each section manages its own visible window. The observer is only active when
+// the section is expanded, so collapsing sections has zero performance cost.
+function DaySection({ label, books, collapsed, onToggle, renderCard, isNoDate, t }) {
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const sentinelRef = useRef(null)
+
+  // Reset visible count whenever the books list changes identity (filter/query changed)
+  useEffect(() => { setVisibleCount(PAGE_SIZE) }, [books])
+
+  // Per-section infinite scroll — only active when expanded and more books remain
+  useEffect(() => {
+    if (collapsed || visibleCount >= books.length) return
+    const sentinel = sentinelRef.current
+    if (!sentinel) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setVisibleCount(c => Math.min(c + PAGE_SIZE, books.length))
+      },
+      { rootMargin: '300px' }
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [collapsed, visibleCount, books.length])
+
+  const visibleBooks = books.slice(0, visibleCount)
+  const byStand = groupByStand(visibleBooks)
+
+  return (
+    <div className={`day-section${isNoDate ? ' day-section--no-date' : ''}`}>
+      <div
+        className="day-section__header"
+        onClick={onToggle}
+        role="button"
+        aria-expanded={!collapsed}
+      >
+        <div className="day-section__title"><span>{label}</span></div>
+        <div className="day-section__counts">
+          <span className="count-badge">{t('books_n_books', books.length)}</span>
+          <span className={`day-section__chevron${collapsed ? ' day-section__chevron--collapsed' : ''}`}>▼</span>
+        </div>
+      </div>
+      {!collapsed && (
+        <>
+          {Object.entries(byStand).sort(([a], [b]) => a.localeCompare(b)).map(([stand, standBooks]) => (
+            <div key={stand} className="stand-group">
+              <div className="stand-group__header">
+                <span className="stand-code">{stand}</span>
+                <span className="stand-name">{standBooks[0].participante_name || ''}</span>
+              </div>
+              <div className="book-list">{standBooks.map(renderCard)}</div>
+            </div>
+          ))}
+          {visibleCount < books.length && (
+            <div ref={sentinelRef} className="catalog-sentinel">
+              <p className="catalog-count">{t('catalog_loading_more')}</p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+export function CatalogPage({ manualBooks, books, grBooks, faireBooks, faireLoading, needsOnboarding, onAdd, onRemove, onConnectGoodreads, onLoadFaireBooks }) {
   const { lang } = useLanguage()
   const t = makeT(lang)
   const locale = t('date_locale')
@@ -115,14 +180,24 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
   const grAutoSelectedRef = useRef(false)
   const [viewMode, setViewMode]           = useState('list')  // 'list' | 'days'
   const [activeDay, setActiveDay]         = useState(null)
+  // "Sem data" starts collapsed in all-days mode; reset effect keeps this in sync
+  const [collapsedGroups, setCollapsedGroups] = useState(() => new Set(['no-date']))
   const [offset, setOffset]               = useState(0)
   const [results, setResults]             = useState([])
   const [hasMore, setHasMore]             = useState(true)
   const [fetching, setFetching]           = useState(false)
   const [fetchError, setFetchError]       = useState(null)
   const query       = useDebounce(inputVal, 300)
-  const sentinelRef = useRef(null)
-  const fetchingRef = useRef(false)
+  const sentinelRef    = useRef(null)
+  const fetchingRef    = useRef(false)
+
+  function toggleGroup(key) {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
 
   const isApiMode = grFilter === null   // no GR filter → fetch from API
   const isGrMode  = !isApiMode
@@ -217,9 +292,38 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
   }, [isGrMode, grBooksByShelf, grFilter, catalogFilter, query])
 
   // ── Day view helpers ───────────────────────────────────
+
+  // All fair books in catalog format, filtered by catalogFilter and query,
+  // used as the data source for the day view in non-GR API mode when faireBooks is loaded.
+  const allFaireForDayView = useMemo(() => {
+    if (!faireBooks || isGrMode) return []
+    let all = Object.entries(faireBooks).map(([isbn, b]) => ({
+      isbn,
+      titulo:             b.titulo,
+      autor:              b.autor,
+      participante_name:  b.participante,
+      stand:              b.stand,
+      pvp:                b.pvp,
+      pvp_feira:          b.pvp_feira,
+      pvp_livro_do_dia:   b.pvp_livro_do_dia || null,
+      livro_do_dia_datas: b.datas || [],
+      cover_jpg:          b.cover || '',
+    }))
+    if (catalogFilter === 'ldd') all = all.filter(b => Boolean(b.pvp_livro_do_dia))
+    if (query.trim()) {
+      const q = query.toLowerCase()
+      all = all.filter(b =>
+        (b.titulo             || '').toLowerCase().includes(q) ||
+        (b.autor              || '').toLowerCase().includes(q) ||
+        (b.participante_name  || '').toLowerCase().includes(q)
+      )
+    }
+    return all.sort((a, b) => (a.titulo || '').localeCompare(b.titulo || '', 'pt'))
+  }, [faireBooks, isGrMode, catalogFilter, query])
+
   // The "current" flat list of books driving the day view depends on the mode.
   const currentBooksForDayView = isGrMode ? grShelfBooks
-    : isLocalSearchMode ? localSearchResults
+    : faireBooks ? allFaireForDayView  // covers both search and no-search in API mode
     : results
 
   const allDays = useMemo(() => {
@@ -228,13 +332,23 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
     return [...set].sort()
   }, [currentBooksForDayView])
 
-  const daySections = useMemo(() => {
-    const datesToShow = activeDay ? [activeDay] : allDays
-    return datesToShow.map(date => {
-      const booksOnDay = currentBooksForDayView.filter(b => (b.livro_do_dia_datas || []).includes(date))
-      return { date, booksOnDay, byStand: groupByStand(booksOnDay) }
-    }).filter(s => s.booksOnDay.length > 0)
-  }, [currentBooksForDayView, allDays, activeDay])
+  // Precomputed index: date string → books on that date (O(n) build, O(1) lookup)
+  const dateToBooks = useMemo(() => {
+    const idx = {}
+    for (const b of currentBooksForDayView) {
+      for (const d of (b.livro_do_dia_datas || [])) {
+        if (!idx[d]) idx[d] = []
+        idx[d].push(b)
+      }
+    }
+    return idx
+  }, [currentBooksForDayView])
+
+  // Books with no discount dates — rendered as a separate "Sem data" section
+  const noDatBooks = useMemo(() =>
+    currentBooksForDayView.filter(b => (b.livro_do_dia_datas || []).length === 0),
+    [currentBooksForDayView]
+  )
 
   // Auto-select "Goodreads — Todos" the first time GR books arrive
   useEffect(() => {
@@ -244,15 +358,23 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
     }
   }, [grBooks.length])
 
-  // "Por dia" only makes sense when all books are in memory.
-  // Drop back to list view when the user enters pure API mode.
-  const canShowDayView = isGrMode || isLocalSearchMode
+  // Trigger lazy-load of all_feira_books.json when the user opens the day view
+  // and we're not in GR mode (GR users load it via the userId effect in useBooks).
   useEffect(() => {
-    if (!canShowDayView && viewMode === 'days') setViewMode('list')
-  }, [canShowDayView])
+    if (viewMode !== 'days' || isGrMode || faireBooks) return
+    onLoadFaireBooks?.()
+    // onLoadFaireBooks is stable (useCallback) and idempotent — safe to omit from deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, isGrMode, faireBooks])
 
   // Reset active day when filters/query change
   useEffect(() => { setActiveDay(null) }, [grFilter, catalogFilter, query])
+
+  // Reset collapsed state when filters/view change.
+  // "Sem data" starts collapsed in all-days mode, expanded when explicitly selected.
+  useEffect(() => {
+    setCollapsedGroups(activeDay === null ? new Set(['no-date']) : new Set())
+  }, [grFilter, catalogFilter, query, activeDay, viewMode])
 
   // Reset API list when catalogFilter, grFilter, or query changes
   useEffect(() => {
@@ -407,6 +529,12 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
 
   const grCount = (bks) => catalogFilter === 'ldd' ? bks.filter(b => Boolean(b.pvp_livro_do_dia)).length : bks.length
 
+  // Day view: which dates to render and whether to show the "Sem data" section
+  const datesToRender = activeDay === null    ? allDays
+                      : activeDay === 'no-date' ? []
+                      : [activeDay]
+  const showSemData   = activeDay === null || activeDay === 'no-date'
+
   return (
     <div className="page">
       {/* Row 1: search bar + view toggle */}
@@ -419,18 +547,16 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
           onChange={e => setInputVal(e.target.value)}
           autoFocus
         />
-        {canShowDayView && (
-          <div className="view-toggle">
-            <button
-              className={`view-toggle__btn ${viewMode === 'list' ? 'active' : ''}`}
-              onClick={() => setViewMode('list')}
-            >{t('books_view_list')}</button>
-            <button
-              className={`view-toggle__btn ${viewMode === 'days' ? 'active' : ''}`}
-              onClick={() => setViewMode('days')}
-            >{t('books_view_days')}</button>
-          </div>
-        )}
+        <div className="view-toggle">
+          <button
+            className={`view-toggle__btn ${viewMode === 'list' ? 'active' : ''}`}
+            onClick={() => setViewMode('list')}
+          >{t('books_view_list')}</button>
+          <button
+            className={`view-toggle__btn ${viewMode === 'days' ? 'active' : ''}`}
+            onClick={() => setViewMode('days')}
+          >{t('books_view_days')}</button>
+        </div>
       </div>
 
       {needsOnboarding && onConnectGoodreads && (
@@ -450,7 +576,7 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
           </button>
         </div>
 
-        {viewMode === 'days' && allDays.length > 0 && (
+        {viewMode === 'days' && (
           <select
             className="map-day-select map-day-select--inline"
             value={activeDay || ''}
@@ -460,6 +586,7 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
             {allDays.map(day => (
               <option key={day} value={day}>{formatDateShort(day, locale)}</option>
             ))}
+            <option value="no-date">{t('books_no_date')}</option>
           </select>
         )}
 
@@ -488,35 +615,44 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, needsOnbo
 
       {/* ── Day-grouped view ───────────────────────────────── */}
       {viewMode === 'days' ? (
-        daySections.length === 0 ? (
+        /* Loading faireBooks on demand (non-GR users only) */
+        !isGrMode && !faireBooks ? (
+          <div className="loading">
+            <div className="loading-spinner" />
+            <p className="loading-detail">{t('loading_catalog')}</p>
+          </div>
+        ) : datesToRender.length === 0 && !(showSemData && noDatBooks.length > 0) ? (
           <p className="empty-state">
-            {activeDay
+            {activeDay && activeDay !== 'no-date'
               ? t('catalog_no_results', formatDate(activeDay, locale))
               : t('catalog_empty')}
           </p>
         ) : (
           <>
-            {daySections.map(({ date, booksOnDay, byStand }) => (
-              <div key={date} className="day-section">
-                <div className="day-section__header">
-                  <div className="day-section__title">
-                    <span>{formatDate(date, locale)}</span>
-                  </div>
-                  <div className="day-section__counts">
-                    <span className="count-badge">{t('books_n_books', booksOnDay.length)}</span>
-                  </div>
-                </div>
-                {Object.entries(byStand).sort(([a], [b]) => a.localeCompare(b)).map(([stand, standBooks]) => (
-                  <div key={stand} className="stand-group">
-                    <div className="stand-group__header">
-                      <span className="stand-code">{stand}</span>
-                      <span className="stand-name">{standBooks[0].participante_name}</span>
-                    </div>
-                    <div className="book-list">{standBooks.map(renderCard)}</div>
-                  </div>
-                ))}
-              </div>
+            {datesToRender.map(date => (
+              <DaySection
+                key={date}
+                label={formatDate(date, locale)}
+                books={dateToBooks[date] || []}
+                collapsed={collapsedGroups.has(date)}
+                onToggle={() => toggleGroup(date)}
+                renderCard={renderCard}
+                isNoDate={false}
+                t={t}
+              />
             ))}
+            {showSemData && noDatBooks.length > 0 && (
+              <DaySection
+                key="no-date"
+                label={t('books_no_date')}
+                books={noDatBooks}
+                collapsed={collapsedGroups.has('no-date')}
+                onToggle={() => toggleGroup('no-date')}
+                renderCard={renderCard}
+                isNoDate={true}
+                t={t}
+              />
+            )}
           </>
         )
 

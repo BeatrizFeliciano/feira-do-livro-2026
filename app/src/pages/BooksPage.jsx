@@ -120,11 +120,12 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
   const t = makeT(lang)
   const locale = t('date_locale')
 
-  const [status, setStatus]       = useState('all')
-  const [query, setQuery]         = useState('')
-  const [page, setPage]           = useState(1)
-  const [viewMode, setViewMode]   = useState('list')  // 'list' | 'days'
-  const [activeDay, setActiveDay] = useState(null)
+  const [status, setStatus]                   = useState('all')
+  const [query, setQuery]                     = useState('')
+  const [page, setPage]                       = useState(1)
+  const [viewMode, setViewMode]               = useState('list')  // 'list' | 'days'
+  const [activeDay, setActiveDay]             = useState(null)
+  const [collapsedGroups, setCollapsedGroups] = useState(() => new Set())
 
   // Books after status + search filter
   const filtered = useMemo(() =>
@@ -184,10 +185,23 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageItems  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
+  function toggleGroup(key) {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
+
   // Reset page when filters change
   useEffect(() => { setPage(1) }, [status, query])
   // Reset active day when switching away from days view
   useEffect(() => { if (viewMode !== 'days') setActiveDay(null) }, [viewMode])
+  // Reset collapsed groups when filters or view mode change.
+  // "Sem data" starts collapsed in all-days mode, expanded when explicitly selected.
+  useEffect(() => {
+    setCollapsedGroups(new Set())
+  }, [status, query, activeDay, viewMode])
   // Scroll to top on page change
   useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }) }, [page])
 
@@ -308,6 +322,7 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
             {allDates.map(day => (
               <option key={day} value={day}>{formatDateShort(day, locale)}</option>
             ))}
+            <option value="no-date">{t('books_no_date')}</option>
           </select>
         )}
       </div>
@@ -348,16 +363,22 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
       {/* ── Day-grouped view ───────────────────────────────── */}
       {viewMode === 'days' && (
         <>
-          {daySections.length === 0 && noDatBooks.length === 0 && (
+          {daySections.length === 0 && !((activeDay === null || activeDay === 'no-date') && noDatBooks.length > 0) && (
             <p className="empty-state">{t('books_empty_filtered')}</p>
           )}
 
           {daySections.map(({ date, booksOnDay, byStand }) => {
             const wantCount = wantCountByDate[date]
             const isBest = bestDayCount > 0 && wantCount === bestDayCount
+            const isCollapsed = collapsedGroups.has(date)
             return (
               <div key={date} className={`day-section ${isBest ? 'day-section--best' : ''}`}>
-                <div className="day-section__header">
+                <div
+                  className="day-section__header"
+                  onClick={() => toggleGroup(date)}
+                  role="button"
+                  aria-expanded={!isCollapsed}
+                >
                   <div className="day-section__title">
                     {isBest && <span className="best-badge" title={t('books_best_day_title')}>★</span>}
                     <span>{formatDate(date, locale)}</span>
@@ -365,9 +386,10 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
                   <div className="day-section__counts">
                     <span className="count-badge">{t('books_n_books', booksOnDay.length)}</span>
                     {wantCount > 0 && <span className="count-badge count-badge--want">♥ {wantCount}</span>}
+                    <span className={`day-section__chevron${isCollapsed ? ' day-section__chevron--collapsed' : ''}`}>▼</span>
                   </div>
                 </div>
-                {Object.entries(byStand).sort(([a], [b]) => a.localeCompare(b)).map(([stand, standBooks]) => (
+                {!isCollapsed && Object.entries(byStand).sort(([a], [b]) => a.localeCompare(b)).map(([stand, standBooks]) => (
                   <div key={stand} className="stand-group">
                     <div className="stand-group__header">
                       <span className="stand-code">{stand}</span>
@@ -391,39 +413,48 @@ export function BooksPage({ books, loading, loadingMessage, error, onToggleWant,
             )
           })}
 
-          {/* "Sem data" section — always available, shown regardless of active day */}
-          {noDatBooks.length > 0 && (
-            <div className="day-section day-section--no-date">
-              <div className="day-section__header">
-                <div className="day-section__title">
-                  <span>{t('books_no_date')}</span>
-                </div>
-                <div className="day-section__counts">
-                  <span className="count-badge">{t('books_n_books', noDatBooks.length)}</span>
-                </div>
-              </div>
-              {Object.entries(noDatByStand).sort(([a], [b]) => a.localeCompare(b)).map(([stand, standBooks]) => (
-                <div key={stand} className="stand-group">
-                  <div className="stand-group__header">
-                    <span className="stand-code">{stand}</span>
-                    <span className="stand-name">{standBooks[0].feira_participante}</span>
-                    {onShowOnMap && (
-                      <button className="btn-pin" onClick={() => onShowOnMap(stand)} title={t('action_view_map', stand)}>📍</button>
-                    )}
+          {/* "Sem data" section — visible in all-days mode (collapsed) and when explicitly selected */}
+          {(activeDay === null || activeDay === 'no-date') && noDatBooks.length > 0 && (() => {
+            const isCollapsed = collapsedGroups.has('no-date')
+            return (
+              <div className="day-section day-section--no-date">
+                <div
+                  className="day-section__header"
+                  onClick={() => toggleGroup('no-date')}
+                  role="button"
+                  aria-expanded={!isCollapsed}
+                >
+                  <div className="day-section__title">
+                    <span>{t('books_no_date')}</span>
                   </div>
-                  {standBooks.map(book => (
-                    <BookRow
-                      key={book.id}
-                      book={book}
-                      onToggleWant={onToggleWant}
-                      onToggleBought={onToggleBought}
-                      onShowOnMap={onShowOnMap}
-                    />
-                  ))}
+                  <div className="day-section__counts">
+                    <span className="count-badge">{t('books_n_books', noDatBooks.length)}</span>
+                    <span className={`day-section__chevron${isCollapsed ? ' day-section__chevron--collapsed' : ''}`}>▼</span>
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
+                {!isCollapsed && Object.entries(noDatByStand).sort(([a], [b]) => a.localeCompare(b)).map(([stand, standBooks]) => (
+                  <div key={stand} className="stand-group">
+                    <div className="stand-group__header">
+                      <span className="stand-code">{stand}</span>
+                      <span className="stand-name">{standBooks[0].feira_participante}</span>
+                      {onShowOnMap && (
+                        <button className="btn-pin" onClick={() => onShowOnMap(stand)} title={t('action_view_map', stand)}>📍</button>
+                      )}
+                    </div>
+                    {standBooks.map(book => (
+                      <BookRow
+                        key={book.id}
+                        book={book}
+                        onToggleWant={onToggleWant}
+                        onToggleBought={onToggleBought}
+                        onShowOnMap={onShowOnMap}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
         </>
       )}
     </div>
