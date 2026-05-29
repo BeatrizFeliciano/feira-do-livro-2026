@@ -177,7 +177,7 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, faireLoad
   const [inputVal, setInputVal]           = useState('')
   const [catalogFilter, setCatalogFilter] = useState('all')   // 'all' | 'ldd'
   const [grFilter, setGrFilter]           = useState(null)    // null | 'goodreads-all' | shelf key
-  const grAutoSelectedRef = useRef(false)
+
   const [viewMode, setViewMode]           = useState('list')  // 'list' | 'days'
   const [activeDay, setActiveDay]         = useState(null)
   // "Sem data" starts collapsed in all-days mode; reset effect keeps this in sync
@@ -349,14 +349,6 @@ export function CatalogPage({ manualBooks, books, grBooks, faireBooks, faireLoad
     currentBooksForDayView.filter(b => (b.livro_do_dia_datas || []).length === 0),
     [currentBooksForDayView]
   )
-
-  // Auto-select "Goodreads — Todos" the first time GR books arrive
-  useEffect(() => {
-    if (!grAutoSelectedRef.current && grBooks.length > 0) {
-      grAutoSelectedRef.current = true
-      setGrFilter('goodreads-all')
-    }
-  }, [grBooks.length])
 
   // Trigger lazy-load of all_feira_books.json when the user opens the day view
   // and we're not in GR mode (GR users load it via the userId effect in useBooks).
