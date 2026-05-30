@@ -37,6 +37,7 @@ export const tr = {
     error_gr_profile:      'Não foi possível carregar os livros do Goodreads. Verifica se o teu perfil e as tuas listas são públicos.',
     error_gr_empty:        'Nenhum livro da tua lista foi encontrado na feira. Verifica se as tuas listas no Goodreads são públicas.',
     error_gr_url_invalid:  'URL inválido. Copia o URL do teu perfil do Goodreads.',
+    error_gr_url_no_id:    'O Goodreads não permite pesquisar por nome de utilizador. Copia o URL completo do teu perfil.',
 
     // Books page
     books_filter_all:       'Todos',
@@ -149,6 +150,7 @@ export const tr = {
     error_gr_profile:      'Could not load Goodreads books. Make sure your profile and shelves are public.',
     error_gr_empty:        'No books from your list were found at the fair. Make sure your Goodreads shelves are public.',
     error_gr_url_invalid:  'Invalid URL. Please paste your Goodreads profile URL.',
+    error_gr_url_no_id:    'Goodreads doesn\'t support username-only lookup. Copy your full profile URL.',
 
     // Books page
     books_filter_all:       'All',

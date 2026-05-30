@@ -473,7 +473,23 @@ export function useBooks() {
   function setUser(input) {
     const trimmed = input.trim()
     const id = extractUserId(trimmed)
-    if (!id) { setError('error_gr_url_invalid'); return false }
+
+    if (!id) {
+      // No numeric ID found — check if it looks like a username slug.
+      // Handles: "beatriz-feliciano" or "goodreads.com/user/show/beatriz-feliciano"
+      let slug = null
+      if (/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(trimmed)) {
+        slug = trimmed  // plain username
+      } else {
+        const m = trimmed.match(/\/user\/show\/([a-zA-Z][a-zA-Z0-9_-]*)(?:[?#/]|$)/)
+        if (m) slug = m[1]  // full URL with username instead of numeric ID
+      }
+      // Goodreads doesn't support username-only URLs (returns 404) — the numeric
+      // ID must be present. Show a specific error guiding the user to the full URL.
+      if (slug) { setError('error_gr_url_no_id'); return false }
+      setError('error_gr_url_invalid')
+      return false
+    }
 
     const isAuthorUrl = /\/author\/show\/\d+/.test(trimmed)
     if (isAuthorUrl) {
