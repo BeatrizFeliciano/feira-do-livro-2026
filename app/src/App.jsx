@@ -8,6 +8,8 @@ import { makeT } from './i18n'
 import logoUrl from './assets/logo.svg'
 import './App.css'
 
+const BMC_URL = 'https://buymeacoffee.com/beatrizfeliciano'
+
 const VALID_TABS = new Set(['books', 'map', 'catalog'])
 
 function getTabFromHash() {
@@ -97,6 +99,9 @@ function AboutPage({ needsOnboarding, loading, loadingMessage, onStart, onSetUse
             </div>
           </>
         )}
+        <a href={BMC_URL} target="_blank" rel="noopener noreferrer" className="about-support">
+          ☕ {t('about_support')}
+        </a>
       </div>
     </div>
   )
@@ -206,6 +211,12 @@ export default function App() {
           <span>{t(notification.messageKey)}</span>
           <button className="app-notification__close" onClick={() => setNotification(null)}>✕</button>
         </div>
+      )}
+
+      {tab !== 'about' && (
+        <a href={BMC_URL} target="_blank" rel="noopener noreferrer" className="bmc-float" aria-label={t('about_support')}>
+          ☕ <span className="bmc-float__label">{t('bmc_short')}</span>
+        </a>
       )}
 
       <main className={tab === 'map' ? 'app-main app-main--fullwidth' : tab === 'about' ? 'app-main app-main--about' : 'app-main'}>

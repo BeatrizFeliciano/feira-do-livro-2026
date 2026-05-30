@@ -12,8 +12,8 @@ export const tr = {
     // About / Onboarding
     about_subtitle:        'Os meus livros na\nFeira do Livro de Lisboa 2026',
     about_feature_1:       'Explora o <strong>catálogo completo</strong> da feira e adiciona livros à tua lista',
-    about_feature_2:       'Vê quais os <strong>livros do dia</strong> com desconto e em que dias estão disponíveis',
-    about_feature_3:       'Liga o <strong>Goodreads</strong> para encontrares automaticamente os teus livros na feira',
+    about_feature_2:       'Vê quais os <strong>livros do dia</strong> com desconto em cada dia',
+    about_feature_3:       'Liga o <strong>Goodreads</strong> para encontrares os teus livros na feira',
     about_feature_4:       'Acompanha o que já <strong>compraste</strong> e quanto <strong>poupaste</strong>',
     about_feature_5:       'Localiza qualquer stand no <strong>mapa da feira</strong>',
     about_gr_instructions: 'Liga o Goodreads para cruzar a tua lista com os livros da feira. Copia o URL do teu perfil do Goodreads:',
@@ -22,6 +22,8 @@ export const tr = {
     about_view_catalog:    'Ver o catálogo →',
     about_refresh:         'Atualizar livros',
     about_change_acct:     'Mudar conta',
+    about_support:         'Apoiar o projeto',
+    bmc_short:             'Apoiar',
 
     // Loading / Errors
     loading_books:         'A carregar os teus livros…',
@@ -132,6 +134,8 @@ export const tr = {
     about_view_catalog:    'View catalogue →',
     about_refresh:         'Refresh books',
     about_change_acct:     'Change account',
+    about_support:         'Support the project',
+    bmc_short:             'Support',
 
     // Loading / Errors
     loading_books:         'Loading your books…',
